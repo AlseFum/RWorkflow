@@ -1,0 +1,13 @@
+PrepareStage 里加载了presets之后，应当有什么复制什么，不要只复制给出的几个。就是说Object.assign而非ifelseifelse
+并且，schema也是，不要只复制，有什么复制什么
+
+然后JSONEditor不需要title，外部会做title
+然后JSONEditor不需要readonly，不需要！
+
+然后需要整理出当前项目里所有数据的数据结构，整理出类型声明。注意，仍然使用js编写
+
+然后presets还需要一个role，提供一些预制的entity，添加实体时可以以这些role为模板。
+
+pipelinesRuntime被创建后应当保存在pack里，更新时也要被保存到pack里
+
+mdreader要能够外部添加插件，就是对一些自定义代码块名的处理
