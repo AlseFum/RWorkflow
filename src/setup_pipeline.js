@@ -65,6 +65,7 @@ export const createStepsRunner = (steps) => {
 // 注册默认 pipelines
 // ============================================================
 export const registerDefaultPipelines = (Pipeline) => {
+  Pipeline("prepare",[])
   Pipeline('validate', [
     (ctx) => {
       ctx.log?.('验证环境配置...', 'step')

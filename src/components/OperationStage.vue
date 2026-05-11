@@ -102,7 +102,7 @@ import { ref, computed, inject, watch, onMounted } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import LogPanel from './LogPanel.vue'
 import { createPipelineRuntime } from '../pipeline.js'
-import { registerDefaultPipelines } from '../setup_pipeline.js'
+import { registerDefaultPipelines, createStepsRunner } from '../setup_pipeline.js'
 
 const pack = inject('pack')
 const emit = defineEmits(['done'])
@@ -111,7 +111,7 @@ const emit = defineEmits(['done'])
 // 状态定义
 // ============================================================
 const defaultOps = {
-  validate: { label: '验证配置', type: 'secondary', entry: 'validate' }
+  validate: { label: 'Op', type: 'secondary', entry: 'validate' }
 }
 
 const localEnv = ref({ ...pack.value.env })
@@ -182,8 +182,6 @@ const addEntity = () => {
   localActors.value.push({
     id: 'entity_' + newIndex,
     name: 'Entity ' + newIndex,
-    active: true,
-    weight: 1.0,
   })
   selectedActorTab.value = localActors.value.length - 1
 }
@@ -207,64 +205,9 @@ const saveChanges = () => {
 const { Pipeline, runPipeline: run } = createPipelineRuntime()
 pack.value.pipelineRuntime = { Pipeline, run }
 
-// 辅助函数：字符串插值
-const interpolate = (str, ctx) => {
-  if (!str) return str
-  return str.replace(/\{([^}]+)\}/g, (_, expr) => {
-    try {
-      return eval(expr)
-    } catch {
-      return expr
-    }
-  })
-}
-
-// 从步骤配置生成 pipeline 函数
-const createStepsRunner = (steps) => {
-  return (ctx) => {
-    globalThis.ctx=ctx
-    for (const step of steps) {
-      if(step == null)continue;
-      switch (step.type) {
-        case 'log':
-          ctx.log?.(interpolate(step.message, ctx), step.level || 'info')
-          break
-        case 'delay':
-          ctx.delay?.(step.ms)
-          break
-        case 'setEnv':
-          try {
-            const expr = step.value
-            ctx.env[step.key] = eval(expr)
-          } catch {
-            ctx.env[step.key] = step.value
-          }
-          break
-        case 'each':
-          const items = ctx[step.items] || []
-          for (const item of items) {
-            const loopCtx = { ...ctx, item }
-            for (const bodyStep of step.body || []) {
-              if (bodyStep.type === 'log') {
-                ctx.log?.(interpolate(bodyStep.message, loopCtx), bodyStep.level || 'info')
-              } else if (bodyStep.type === 'delay') {
-                ctx.delay?.(bodyStep.ms)
-              }
-            }
-          }
-          break
-        default:
-          const res=new Function('ctx', step.body??step).call(ctx, ctx)
-          if(res!=null && res!==undefined){
-            ctx.log(res)
-          }
-          break
-      }
-    }
-  }
-}
-
+// ============================================================
 // stat 函数：用于统计汇总
+// ============================================================
 const stat = (name, value) => {
   if (!stats.value[name]) {
     stats.value[name] = { count: 0, total: 0 }
@@ -289,9 +232,11 @@ if (Object.keys(pack.value.ops || {}).length === 0) {
 // 日志和执行
 // ============================================================
 const addLog = (msg, type = 'info') => {
+  logs.value.push({ msg, type })
+}
+const addTLog = (msg, type = 'info') => {
   logs.value.push({ time: new Date().toLocaleTimeString(), msg, type })
 }
-
 const delay = (ms) => new Promise(r => setTimeout(r, ms))
 
 const runPipeline = async (pipelineName) => {
@@ -314,8 +259,10 @@ const runPipeline = async (pipelineName) => {
       actors: localActors.value,
       selectedActor: selectedActor.value,
       log: addLog,
+      tlog: addTLog,
       delay,
       stat,
+      temp: {},
     })
     lastOp.value = pipelineName
   } catch (err) {

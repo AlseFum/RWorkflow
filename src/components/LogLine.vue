@@ -1,6 +1,6 @@
 <template>
   <div :class="['log-item', 'log-' + log.type]">
-    <span class="log-time">[{{ log.time }}]</span>
+    <span v-if="log.time" class="log-time">[{{ log.time }}]</span>
     <span class="log-msg">{{ log.msg }}</span>
   </div>
 </template>
