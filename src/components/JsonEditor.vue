@@ -23,6 +23,9 @@
 </template>
 // TODO 我们需要schema，还需要指向固定data object的属性
 <script setup>
+// ============================================================
+// Props & Emits
+// ============================================================
 import { ref, computed } from 'vue'
 import JsonTag from './JsonTag.vue'
 
@@ -34,6 +37,9 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue'])
 
+// ============================================================
+// Value Operations
+// ============================================================
 const getMessage = (key) => props.messages[key] || key
 const getValue = (key) => props.modelValue?.[key]
 const setValue = (key, value) => {
@@ -41,6 +47,9 @@ const setValue = (key, value) => {
   emit('update:modelValue', newObj)
 }
 
+// ============================================================
+// Field Rename
+// ============================================================
 const renameField = (oldKey, newKey) => {
   if (oldKey === newKey || !props.modelValue) return
   const newObj = { ...props.modelValue }
@@ -50,6 +59,9 @@ const renameField = (oldKey, newKey) => {
   emit('update:modelValue', newObj)
 }
 
+// ============================================================
+// Utilities
+// ============================================================
 const inferType = (value) => {
   if (value === null) return 'null'
   if (value === undefined) return 'undefined'
@@ -74,17 +86,20 @@ const checkDepend = (fieldDef, getVal) => {
   return true
 }
 
+// ============================================================
+// Computed Fields
+// ============================================================
 const visibleFields = computed(() => {
   const fields = []
   const schemaKeys = props.schema ? Object.keys(props.schema) : []
   const dataKeys = Object.keys(props.modelValue || {})
-  
+
   // 先添加 schema 定义的字段
   if (props.schema) {
     for (const [key, def] of Object.entries(props.schema)) {
       const fieldDef = typeof def === 'string' ? { type: def } : def
       if (!checkDepend(fieldDef, getValue)) continue
-      
+
       let options = fieldDef.options
       if (fieldDef.type === 'enum' && fieldDef.values) {
         options = fieldDef.values.map((v) => typeof v === 'object' ? v : { value: v, label: v })
@@ -98,7 +113,7 @@ const visibleFields = computed(() => {
       })
     }
   }
-  
+
   // 再添加 modelValue 中 schema 没有定义的字段（用户手动添加的）
   for (const key of dataKeys) {
     if (!schemaKeys.includes(key)) {
@@ -109,11 +124,13 @@ const visibleFields = computed(() => {
       })
     }
   }
-  
+
   return fields
 })
 
-
+// ============================================================
+// Field Management
+// ============================================================
 const addField = () => {
   const newKey = 'field_' + Date.now().toString(36)
   const fieldType = 'string' // 默认类型

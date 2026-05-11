@@ -98,7 +98,7 @@
 // ============================================================
 // 依赖导入
 // ============================================================
-import { ref, computed, inject, watch } from 'vue'
+import { ref, computed, inject, watch, onMounted } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import LogPanel from './LogPanel.vue'
 import { createPipelineRuntime } from '../pipeline.js'
@@ -355,6 +355,11 @@ registerDefaultPipelines(Pipeline)
 // 暴露 stats 和 selectedActor 给外部访问
 pack.value.stats = stats
 pack.value.selectedActor = selectedActor
+
+// 进入时自动运行 init pipeline
+onMounted(() => {
+  runPipeline('prepare')
+})
 
 // 进入 Summary 页面前执行 summary pipeline
 const goToSummary = async () => {

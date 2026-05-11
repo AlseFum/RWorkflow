@@ -1,7 +1,6 @@
 <template>
   <div class="log-panel">
     <div class="log-header">
-      <h4>执行日志</h4>
       <button v-if="logs.length" class="btn-clear" @click="$emit('clear')">清除</button>
     </div>
     <div ref="container" class="log-container">

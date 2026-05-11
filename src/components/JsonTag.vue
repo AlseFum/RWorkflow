@@ -91,7 +91,7 @@
           <span class="tag-value tag-string">{{ formatString(value) }}</span>
         </template>
 
-        <span v-if="!readonly && !computed" class="tag-actions">
+        <span v-if="!computed" class="tag-actions">
           <button class="tag-btn edit" @click.stop="startEdit">✎</button>
           <button class="tag-btn delete" @click.stop="$emit('remove')">✕</button>
         </span>
@@ -109,10 +109,9 @@ const props = defineProps({
   type: { type: String, default: 'string' },
   options: { type: Array, default: () => [] },
   computed: { type: Boolean, default: false },
-  readonly: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update', 'save', 'remove', 'rename'])
+const emit = defineEmits(['update', 'remove', 'rename'])
 
 const isEditing = ref(false)
 const isEditingKey = ref(false)

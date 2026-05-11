@@ -70,12 +70,19 @@
 </template>
 
 <script setup>
+// ============================================================
+// 依赖导入
+// ============================================================
 import { ref, inject } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import PackageSelector from './PackageSelector.vue'
+
 const emit = defineEmits(['next'])
 const pack = inject('pack')
 
+// ============================================================
+// 默认值定义
+// ============================================================
 const defaultEnv = { mode: 'dev', debug: true, timeout: 5000 }
 const createDefaultEntity = (index) => ({
   id: 'entity_' + index,
@@ -84,6 +91,9 @@ const createDefaultEntity = (index) => ({
   weight: 1.0,
 })
 
+// ============================================================
+// 状态定义
+// ============================================================
 const env = ref({ ...pack.value.env || defaultEnv })
 const actors = ref(pack.value.actors.length ? [...pack.value.actors]:[createDefaultEntity(1)])
 const schemas = ref(pack.value.schemas || {})
@@ -105,6 +115,9 @@ const currentSchema = ref({
   },
 })
 
+// ============================================================
+// Preset 选择处理
+// ============================================================
 const onPresetSelect = (preset) => {
   if (!preset) {
     selectedPreset.value = null
@@ -114,9 +127,10 @@ const onPresetSelect = (preset) => {
   selectedPreset.value = preset
   const content = preset.content || {}
 
-  // 复制所有属性，有什么复制什么
+  // 更新 pack
   Object.assign(pack.value, content)
 
+  // 更新本地 UI 状态
   if (content.env) {
     env.value = { ...content.env }
   }
@@ -124,7 +138,6 @@ const onPresetSelect = (preset) => {
     actors.value = content.actors.map((e) => ({ ...e }))
   } else {
     actors.value = [createDefaultEntity(1)]
-    pack.value.actors [createDefaultEntity(1)]
   }
   if (content.schemas) {
     schemas.value = { ...content.schemas }
@@ -143,7 +156,9 @@ const onPresetSelect = (preset) => {
   }
 }
 
-
+// ============================================================
+// Entity 操作
+// ============================================================
 const addEntity = () => {
   const newIndex = actors.value.length + 1
   actors.value.push(createDefaultEntity(newIndex))
@@ -164,6 +179,9 @@ const removeEntity = (index) => {
   pack.value.actors=[...actors.value]
 }
 
+// ============================================================
+// 导航
+// ============================================================
 const handleNext = () => {
   pack.value.env = env.value
   pack.value.actors=actors.value
