@@ -65,7 +65,7 @@ data:
       size: 20
 ```
 ```yaml
-is: entities
+is: actors
 data:
   - id: char_001
     name: Alice

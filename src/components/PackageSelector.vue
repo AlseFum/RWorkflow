@@ -27,8 +27,8 @@
 
     <div v-if="!selectedPackage" class="presets-grid">
       <button
-        v-for="pkg in parsedPresets"
-        :key="pkg.name"
+        v-for="pkg in presetList"
+        :key="pkg.key"
         class="preset-card"
         @click="selectPackage(pkg)"
       >
@@ -47,7 +47,7 @@
 
 <script setup>
 import { computed, ref } from 'vue'
-import { parsePackage } from '../mdreader.js'
+import { presets } from '../md/index'
 
 const props = defineProps({
   modelValue: { type: Object, default: null },
@@ -68,17 +68,16 @@ const loadPackageFile = (event) => {
   const reader = new FileReader()
   reader.onload = (e) => {
     try {
-      let pkg
+      const text = e.target.result
       if (file.name.endsWith('.json')) {
-        const data = JSON.parse(e.target.result)
-        pkg = { name: data.name || file.name, content: data }
+        const data = JSON.parse(text)
+        emit('update:modelValue', { name: data.name || file.name, md: text, content: data })
+        emit('select', { name: data.name || file.name, md: text, content: data })
       } else {
-        pkg = parsePackage(e.target.result)
-        pkg.name = pkg.content.name || file.name
+        emit('update:modelValue', { name: file.name, md: text })
+        emit('select', { name: file.name, md: text })
       }
       packageName.value = file.name
-      emit('update:modelValue', pkg)
-      emit('select', pkg)
     } catch (err) {
       packageError.value = `加载失败: ${err.message}`
       packageName.value = ''
@@ -87,23 +86,11 @@ const loadPackageFile = (event) => {
   reader.readAsText(file)
 }
 
-// 从 md/index.js 导入预设
-import { presets } from '../md/index'
-
-// 转换为数组格式
-const presetMarkdowns = Object.entries(presets).map(([key, preset]) => ({
+// 预设列表（直接透传，不 pre-parse）
+const presetList = Object.entries(presets).map(([key, preset]) => ({
   ...preset,
   key,
 }))
-
-// 解析所有预设
-const parsedPresets = presetMarkdowns.map((preset) => {
-  const pkg = parsePackage(preset.md)
-  return {
-    ...preset,
-    content: pkg,
-  }
-})
 
 const selectedPackage = computed(() => props.modelValue)
 

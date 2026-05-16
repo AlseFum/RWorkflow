@@ -78,6 +78,7 @@ import JsonEditor from './JsonEditor.vue'
 import PackageSelector from './PackageSelector.vue'
 
 const emit = defineEmits(['next'])
+const runtime = inject('runtime')
 const pack = inject('pack')
 
 // ============================================================
@@ -125,34 +126,38 @@ const onPresetSelect = (preset) => {
   }
 
   selectedPreset.value = preset
-  const content = preset.content || {}
 
-  // 更新 pack
-  Object.assign(pack.value, content)
+  // content 存在说明是 .json 文件，直接合并
+  if (preset.content) {
+    Object.assign(pack.value, preset.content)
+  } else if (preset.md) {
+    // md 文件走 runtime 解析合并
+    runtime.loadPreset(preset.md)
+  }
 
   // 更新本地 UI 状态
-  if (content.env) {
-    env.value = { ...content.env }
+  if (pack.value.env) {
+    env.value = { ...pack.value.env }
   }
-  if (content.actors && content.actors.length > 0) {
-    actors.value = content.actors.map((e) => ({ ...e }))
+  if (pack.value.actors && pack.value.actors.length > 0) {
+    actors.value = pack.value.actors.map((e) => ({ ...e }))
   } else {
     actors.value = [createDefaultEntity(1)]
   }
-  if (content.schemas) {
-    schemas.value = { ...content.schemas }
-    if (content.schemas.env) {
-      currentSchema.value.env = content.schemas.env
+  if (pack.value.schemas) {
+    schemas.value = { ...pack.value.schemas }
+    if (pack.value.schemas.env) {
+      currentSchema.value.env = pack.value.schemas.env
     }
-    if (content.schemas.entity) {
-      currentSchema.value.entity = content.schemas.entity
+    if (pack.value.schemas.entity) {
+      currentSchema.value.entity = pack.value.schemas.entity
     }
   }
-  if (content.messages) {
-    messages.value = { ...content.messages }
+  if (pack.value.messages) {
+    messages.value = { ...pack.value.messages }
   }
-  if (content.roles) {
-    roles.value = { ...content.roles }
+  if (pack.value.roles) {
+    roles.value = { ...pack.value.roles }
   }
 }
 

@@ -35,7 +35,7 @@ const props = defineProps({
   messages: { type: Object, default: () => ({}) },
 })
 
-const emit = defineEmits(['update:modelValue'])
+const emit = defineEmits(['update:modelValue', 'addField'])
 
 // ============================================================
 // Value Operations

@@ -30,13 +30,15 @@ import { ref, computed, provide } from 'vue'
 import PrepareStage from './components/PrepareStage.vue'
 import OperationStage from './components/OperationStage.vue'
 import LogStage from './components/LogStage.vue'
+import { createRuntime } from './runtime.js'
 
 const stage = ref('prepare')
-const pack = ref({ env: {}, actors: [], ops: {}, schemas:{}, messages:{} })
+const pack = ref({ env: {}, actors: [], ops: {}, schemas: {}, messages: {}, pipelines: {}, roles: {} })
 
-// 通过 provide 向所有子组件提供 package
+const runtime = createRuntime(pack)
+provide('runtime', runtime)
 provide('pack', pack)
-globalThis.pack=pack.value
+globalThis.pack = pack.value
 
 const handleNext = () => {
   stage.value = 'run'
@@ -49,7 +51,7 @@ const handleDone = () => {
 const handleReset = () => {
   stage.value = 'prepare'
 }
-//style
+
 const dot1Class = computed(() => {
   let c = 'stage-dot'
   if (stage.value === 'prepare') c += ' active'
@@ -68,5 +70,4 @@ const dot2Class = computed(() => {
 const line2Class = computed(() => stage.value === 'summary' ? 'stage-line active' : 'stage-line')
 
 const dot3Class = computed(() => stage.value === 'summary' ? 'stage-dot active' : 'stage-dot')
-
 </script>

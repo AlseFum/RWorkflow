@@ -11,113 +11,67 @@ const plugins = {}
  * @param {string} lang - 代码块语言名
  * @param {Function} handler - 处理函数，接收 (content, lang) 返回解析结果
  */
-export const registerPlugin = (lang, handler) => {
+export const usePlugin = (lang, handler) => {
   plugins[lang.toLowerCase()] = handler
 }
 
-// 提取 markdown frontmatter (YAML 头部)
-export function extract_frontmatter(markdown) {
-  const match = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n/)
-  if (!match) return {}
+/**
+ * 纯解析：提取 frontmatter + 代码块
+ * @param {string} markdown
+ * @returns {{ [key: string]: any, blocks: { lang: string, data: object, is: string|null }[] }}
+ */
+export function parsePackage(markdown) {
+  // 1. 抽掉 frontmatter
+  const fmMatch = markdown.match(/^---\s*\n([\s\S]*?)\n---\s*\n/)
+  const body = fmMatch ? markdown.slice(fmMatch[0].length) : markdown
 
-  try {
-    return yaml.load(match[1]) || {}
-  } catch (err) {
-    console.warn('Frontmatter parse error:', err.message)
-    return {}
+  // 2. frontmatter yaml 解析
+  let frontmatter = {}
+  if (fmMatch) {
+    try {
+      frontmatter = yaml.load(fmMatch[1]) || {}
+    } catch (err) {
+      console.warn('Frontmatter parse error:', err.message)
+    }
   }
-}
 
-// 去掉 frontmatter 后的纯 markdown 内容
-export function strip_frontmatter(markdown) {
-  return markdown.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '')
-}
-
-export function extract_json(markdown) {
-  const results = []
-
-  const regex = /```[ \r\t]*(\w+)\s*\n([\s\S]*?)```/g
+  // 3. 提取代码块
+  const blocks = []
+  const codeRe = /```[ \r\t]*(\w+)\s*\n([\s\S]*?)```/g
   let match
 
-  while ((match = regex.exec(markdown)) !== null) {
+  while ((match = codeRe.exec(body)) !== null) {
     const lang = match[1].toLowerCase().trim()
     const content = match[2].trim()
 
     try {
+      let data
       switch (lang) {
         case 'json':
         case 'json5':
-          results.push({ lang, data: JSON5.parse(content) })
+          data = JSON5.parse(content)
           break
         case 'yaml':
         case 'yml':
-          results.push({ lang, data: yaml.load(content) })
+          data = yaml.load(content)
           break
         case 'toml':
-          results.push({ lang, data: toml.parse(content) })
+          data = toml.parse(content)
           break
         default:
-          // 检查插件
           if (plugins[lang]) {
-            const result = plugins[lang](content, lang)
-            if (result) results.push(result)
+            data = plugins[lang](content, lang)
           }
           break
+      }
+
+      if (data !== undefined) {
+        blocks.push({ lang, data, is: data?.is ?? null })
       }
     } catch (err) {
       console.warn(`Parse ${lang} error:`, err.message)
     }
   }
 
-  return results
-}
-
-// 解析 package markdown，返回合并后的配置对象
-export function parsePackage(markdown) {
-  // 先提取 frontmatter
-  // frontmatter有必要吗
-
-  const frontmatter = extract_frontmatter(markdown)
-  const cleanMarkdown = strip_frontmatter(markdown)
-  const blocks = extract_json(cleanMarkdown)
-
-  const pkg = {
-    ...frontmatter, // 包含 name, icon, description 等
-    env: {},
-    actors: [],
-    schemas: {},
-    messages: {},
-    ops: {},
-    pipelines: {},
-    roles: {},
-  }
-
-  for (const block of blocks) {
-    if (!block) continue
-    const { data } = block
-
-    // 处理 is 标记
-    const isSymbol=data.is
-    delete data.is
-    if (isSymbol === 'schemas') {
-      Object.assign(pkg.schemas, data.data || data)
-      delete pkg.is;
-    } else if (isSymbol === 'messages') {
-      Object.assign(pkg.messages, data.data || data)
-    } else if (isSymbol === 'ops') {
-      Object.assign(pkg.ops, data.data || data)
-    } else if (isSymbol === 'pipelines') {
-      Object.assign(pkg.pipelines, data.data || data)
-    } else if (isSymbol === 'roles') {
-      Object.assign(pkg.roles, data.data || data)
-    } else if (isSymbol === 'env') {
-      Object.assign(pkg.env, data.data || data)
-    } else if (isSymbol === 'actors') {
-      Object.assign(pkg.actors, data.data || data.actors)
-    } else {
-      Object.assign(pkg, data)
-    }
-  }
-
-  return pkg
+  return { ...frontmatter, blocks }
 }

@@ -70,22 +70,23 @@
           :key="op.name"
           :class="['op-btn', 'op-' + op.type]"
           :disabled="isRunning"
-          @click="runPipeline(op.entry)"
+          @click="handleRun(op.entry)"
         >
           {{ op.label }}
         </button>
       </div>
 
       <LogPanel
-        :logs="logs"
+        :logs="runtime.logs"
         :is-running="isRunning"
-        @clear="logs = []"
+        @clear="runtime.logs.length = 0"
       />
     </div>
 
     <div class="stage-footer">
       <button
         class="btn-next-stage"
+        :disabled="isRunning || !runtime.lastOp()"
         @click="goToSummary"
       >
         {{ isRunning ? '...' : 'Summary' }}
@@ -95,38 +96,19 @@
 </template>
 
 <script setup>
-// ============================================================
-// 依赖导入
-// ============================================================
 import { ref, computed, inject, watch, onMounted } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import LogPanel from './LogPanel.vue'
-import { createPipelineRuntime } from '../pipeline.js'
-import { registerDefaultPipelines, createStepsRunner } from '../setup_pipeline.js'
 
+const runtime = inject('runtime')
 const pack = inject('pack')
-const emit = defineEmits(['done'])
-
-// ============================================================
-// 状态定义
-// ============================================================
-const defaultOps = {
-  validate: { label: 'Op', type: 'secondary', entry: 'validate' }
-}
+const emit = defineEmits(['done', 'addField'])
 
 const localEnv = ref({ ...pack.value.env })
-const localActors = ref(pack.value.actors.map(e => ({ ...e })) || [])
-const isRunning = ref(false)
+const localActors = ref(pack.value.actors.map((e) => ({ ...e })) || [])
 const selectedTab = ref('env')
 const selectedActorTab = ref(0)
 const roles = ref(pack.value.roles || {})
-
-const logs = ref([])
-const stats = ref({})
-
-const currentOp = ref('')
-const lastOp = ref('')
-
 const entitySchema = ref({
   id: { type: 'string', label: 'ID' },
   name: { type: 'string', label: '名称' },
@@ -138,9 +120,6 @@ const handleEntityAddField = ({ key, type }) => {
   entitySchema.value[key] = { type, label: key }
 }
 
-// ============================================================
-// 计算属性
-// ============================================================
 const opsList = computed(() => {
   const pkgOps = pack.value.ops || {}
   return Object.entries(pkgOps).map(([name, config]) => ({
@@ -155,20 +134,18 @@ const selectedActor = computed(() => {
   return localActors.value[selectedActorTab.value] || null
 })
 
+const isRunning = computed(() => runtime.isRunning())
+
 watch(() => localActors.value.length, (newLen) => {
   if (selectedActorTab.value >= newLen && newLen > 0) {
     selectedActorTab.value = newLen - 1
   }
 })
 
-// 切换 package 时重新注册默认 pipelines
 watch(() => pack.value.pipelines, () => {
-  registerDefaultPipelines(Pipeline)
+  runtime.registerPipelines()
 }, { deep: true })
 
-// ============================================================
-// 数据更新方法
-// ============================================================
 const updateEnv = (newEnv) => {
   localEnv.value = newEnv
 }
@@ -189,8 +166,7 @@ const addEntity = () => {
 const addEntityFromRole = (roleKey) => {
   const role = roles.value[roleKey]
   if (!role) return
-  const newEntity = Object.assign({}, role)
-  localActors.value.push(newEntity)
+  localActors.value.push({ ...role })
   selectedActorTab.value = localActors.value.length - 1
 }
 
@@ -199,129 +175,23 @@ const saveChanges = () => {
   pack.value.actors.splice(0, pack.value.actors.length, ...localActors.value)
 }
 
-// ============================================================
-// Pipeline 运行时初始化
-// ============================================================
-const { Pipeline, runPipeline: run } = createPipelineRuntime()
-pack.value.pipelineRuntime = { Pipeline, run }
-
-// ============================================================
-// stat 函数：用于统计汇总
-// ============================================================
-const stat = (name, value) => {
-  if (!stats.value[name]) {
-    stats.value[name] = { count: 0, total: 0 }
-  }
-  stats.value[name].count++
-  stats.value[name].total += Number(value) || 0
-  addLog(`[STAT] ${name}: ${value}`, 'data')
-}
-
-// ============================================================
-// Pipeline 注册
-// ============================================================
-// 初始化默认 ops
-if (Object.keys(pack.value.ops || {}).length === 0) {
-  Object.assign(pack.value, { ops: { ...defaultOps } })
-}
-
-// 注册默认 pipeline 函数（会在 pack.pipelines 注册后再次调用以覆盖默认值）
-
-
-// ============================================================
-// 日志和执行
-// ============================================================
-const addLog = (msg, type = 'info') => {
-  logs.value.push({ msg, type })
-}
-const addTLog = (msg, type = 'info') => {
-  logs.value.push({ time: new Date().toLocaleTimeString(), msg, type })
-}
-const delay = (ms) => new Promise(r => setTimeout(r, ms))
-
-const runPipeline = async (pipelineName) => {
-  if (isRunning.value) return
-
+const handleRun = async (pipelineName) => {
   saveChanges()
-
-  const p = Pipeline(pipelineName)
-  if (!p) {
-    addLog(`Pipeline "${pipelineName}" 未定义`, 'error')
-    return
-  }
-
-  isRunning.value = true
-  currentOp.value = pipelineName
-
-  try {
-    await run(pipelineName, {
-      env: localEnv.value,
-      actors: localActors.value,
-      selectedActor: selectedActor.value,
-      log: addLog,
-      tlog: addTLog,
-      delay,
-      stat,
-      temp: {},
-    })
-    lastOp.value = pipelineName
-  } catch (err) {
-    addLog(`错误: ${err.message}`, 'error')
-  }
-
-  currentOp.value = ''
-  isRunning.value = false
-}
-// ====================
-// 注册 pack 中的 pipelines
-if (pack.value.pipelines) {
-  for (const [name, config] of Object.entries(pack.value.pipelines)) {
-    //实际上我们需要一些特殊处理，来Mount到之前的pipelines上。
-    Pipeline(name, [createStepsRunner(config.steps || [])]).append(65535,"summary")
-    if (!pack.value.ops[name]) {
-      pack.value.ops[name] = { label: name, type: 'secondary', entry: name }
-    }
-
-    // 第二种模式
-    let pos=(config.pos??"").split(' ')
-    let m=Pipeline(pos[0]);
-    if(!m)continue;
-    let prio=Number(pos[2]);
-    if(pos[1]==='append'){
-      m.append(prio,createStepsRunner(config.do||[]));
-    }else if(pos[1]==='prepend'){
-      m.prepend(prio,createStepsRunner(config.do||[]));
-    }
-    
-  }
+  await runtime.run(pipelineName)
 }
 
-// 注册默认 pipeline（会覆盖同名配置）
-registerDefaultPipelines(Pipeline)
-
-// 暴露 stats 和 selectedActor 给外部访问
-pack.value.stats = stats
-pack.value.selectedActor = selectedActor
-
-// 进入时自动运行 init pipeline
 onMounted(() => {
-  runPipeline('prepare')
+  runtime.registerPipelines()
+  runtime.run('prepare')
 })
 
-// 进入 Summary 页面前执行 summary pipeline
-const goToSummary = async () => {
-  if (isRunning.value || !lastOp.value) return
-  
-  isRunning.value = true
-  currentOp.value = 'summary'
-  
-  // 保存上下文数据到 pack，供 LogStage 使用
+const goToSummary = () => {
+  saveChanges()
+
   pack.value.operationEnv = { ...localEnv.value }
   pack.value.operationActors = [...localActors.value]
   pack.value.operationSelectedActor = selectedActor.value
-  pack.value.operationLogs = [...logs.value]
-  
-  isRunning.value = false
+
   emit('done')
 }
 </script>

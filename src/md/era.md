@@ -21,6 +21,8 @@ is: roles
 base:
     ASense: 1
     BSense: 1
+    CSense: 1
     MSense: 1
     VSense: 2
+    ESense: 0
 ```
