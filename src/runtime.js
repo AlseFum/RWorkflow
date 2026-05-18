@@ -73,13 +73,8 @@ export const createRuntime = (pack) => {
     // 再按 is 路由合并 blocks
     for (const block of blocks) {
       if (!block) continue
-      const { data } = block
-      if (!data) continue
 
-      // 删掉 is 标记，防止合入 pack 时污染顶层字段
-      const is = block.is ?? data.is
-      delete data.is
-
+      const is = block.is
       if (!is) continue
 
       const target = (() => {
@@ -91,12 +86,12 @@ export const createRuntime = (pack) => {
           case 'roles':     return pack.value.roles
           case 'env':       return pack.value.env
           case 'actors':    return pack.value.actors
-          default:          return is === block.lang ? pack.value : null
+          default:          return pack.value
         }
       })()
 
       if (target != null) {
-        Object.assign(target, data.data ?? data)
+        Object.assign(target, block)
       }
     }
   }

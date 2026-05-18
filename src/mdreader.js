@@ -18,7 +18,7 @@ export const usePlugin = (lang, handler) => {
 /**
  * 纯解析：提取 frontmatter + 代码块
  * @param {string} markdown
- * @returns {{ [key: string]: any, blocks: { lang: string, data: object, is: string|null }[] }}
+ * @returns {{ [key: string]: any, blocks: any[] }}
  */
 export function parsePackage(markdown) {
   // 1. 抽掉 frontmatter
@@ -66,7 +66,7 @@ export function parsePackage(markdown) {
       }
 
       if (data !== undefined) {
-        blocks.push({ lang, data, is: data?.is ?? null })
+        blocks.push(data)
       }
     } catch (err) {
       console.warn(`Parse ${lang} error:`, err.message)
