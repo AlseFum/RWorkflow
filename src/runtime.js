@@ -1,6 +1,6 @@
 import { reactive } from 'vue'
 import { createPipelineRuntime } from './pipeline.js'
-import { registerDefaultPipelines, createStepsRunner } from './setup_pipeline.js'
+import { registerDefaultPipelines } from './setup_pipeline.js'
 import { parsePackage } from './mdreader.js'
 
 /**
@@ -111,18 +111,20 @@ export const createRuntime = (pack) => {
     isRunning = true
     currentOp = pipelineName
 
+    const ctx = {
+      env: pack.value.env,
+      actors: pack.value.actors,
+      selectedActor: pack.value.actors?.[0] ?? null,
+      log: addLog,
+      tlog: addTLog,
+      delay,
+      stat,
+      temp: {},
+      ...extraCtx,
+    }
+
     try {
-      await runPipeline(pipelineName, {
-        env: pack.value.env,
-        actors: pack.value.actors,
-        selectedActor: pack.value.actors?.[0] ?? null,
-        log: addLog,
-        tlog: addTLog,
-        delay,
-        stat,
-        temp: {},
-        ...extraCtx,
-      })
+      runPipeline(pipelineName, ctx)
       lastOp = pipelineName
     } catch (err) {
       addLog(`错误: ${err.message}`, 'error')
@@ -140,10 +142,7 @@ export const createRuntime = (pack) => {
 
     if (pkg.pipelines) {
       for (const [name, config] of Object.entries(pkg.pipelines)) {
-        Pipeline(name, [createStepsRunner(config.steps || [])]).append(
-          65535,
-          'summary',
-        )
+        Pipeline(name, config.steps || [])
         if (!pkg.ops[name]) {
           pkg.ops[name] = {
             label: name,
@@ -158,9 +157,9 @@ export const createRuntime = (pack) => {
         const prio = Number(pos[2])
 
         if (pos[1] === 'append') {
-          target.append(prio, createStepsRunner(config.do || []))
+          target.append(prio, config.do || [])
         } else if (pos[1] === 'prepend') {
-          target.prepend(prio, createStepsRunner(config.do || []))
+          target.prepend(prio, config.do || [])
         }
       }
     }

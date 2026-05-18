@@ -13,55 +13,6 @@ export const interpolate = (str, ctx) => {
 }
 
 // ============================================================
-// 从步骤配置生成 pipeline 函数
-// ============================================================
-export const createStepsRunner = (steps) => {
-  return (ctx) => {
-    globalThis.ctx = ctx
-    for (const step of steps) {
-      if (step == null) continue
-      switch (step.type) {
-        case 'log':
-          ctx.log?.(interpolate(step.message, ctx), step.level || 'info')
-          break
-        case 'delay':
-          ctx.delay?.(step.ms)
-          break
-        case 'setEnv':
-          try {
-            const expr = step.value
-            ctx.env[step.key] = eval(expr)
-          } catch {
-            ctx.env[step.key] = step.value
-          }
-          break
-        case 'each': {
-          const items = ctx[step.items] || []
-          for (const item of items) {
-            const loopCtx = { ...ctx, item }
-            for (const bodyStep of step.body || []) {
-              if (bodyStep.type === 'log') {
-                ctx.log?.(interpolate(bodyStep.message, loopCtx), bodyStep.level || 'info')
-              } else if (bodyStep.type === 'delay') {
-                ctx.delay?.(bodyStep.ms)
-              }
-            }
-          }
-          break
-        }
-        default: {
-          const res = new Function('ctx', step.body ?? step).call(ctx, ctx)
-          if (res != null && res !== undefined) {
-            ctx.log(res)
-          }
-          break
-        }
-      }
-    }
-  }
-}
-
-// ============================================================
 // 注册默认 pipelines
 // ============================================================
 export const registerDefaultPipelines = (Pipeline) => {

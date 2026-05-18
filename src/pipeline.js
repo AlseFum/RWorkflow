@@ -1,32 +1,16 @@
-// Pipeline 运行时
-const expandStep = (pipelines, step, stack) => {
-  if (typeof step === 'string') {
-    return flattenPipeline(pipelines, step, stack)
+const expandStep = (pipelines, step, stack = []) => {
+  if (typeof step === 'function') return [step]
+  if (typeof step === 'string' && pipelines[step]) {
+    if (stack.includes(step)) throw new Error(`Pipeline 循环引用: ${[...stack, step].join(' → ')}`)
+    const p = pipelines[step]
+    const nextStack = [...stack, step]
+    return [
+      ...[...p.prepends].sort((a, b) => b.prio - a.prio).flatMap(s => expandStep(pipelines, s.step, nextStack)),
+      ...(p.main != null ? expandStep(pipelines, p.main, nextStack) : []),
+      ...[...p.appends].sort((a, b) => a.prio - b.prio).flatMap(s => expandStep(pipelines, s.step, nextStack)),
+    ]
   }
-  if (typeof step === 'function' || Array.isArray(step)) {
-    return [step]
-  }
-  throw new Error(`Pipeline 步骤须为 function、arrayscript 数组或子 pipeline 名字符串，得到 ${typeof step}. stack:${stack}`)
-}
-
-const flattenPipeline = (pipelines, name, stack = []) => {
-  if (stack.includes(name)) {
-    throw new Error(`Pipeline 循环引用: ${[...stack, name].join(' → ')}`)
-  }
-  const p = pipelines[name]
-  if (!p) throw new Error(`Pipeline 未注册: 「${name}」`)
-  const nextStack = [...stack, name]
-  const out = []
-
-  const prep = [...p.prepends].sort((a, b) => a.prio - b.prio).reverse()
-  for (const { step } of prep) out.push(...expandStep(pipelines, step, nextStack))
-
-  if (p.main != null) out.push(...expandStep(pipelines, p.main, nextStack))
-
-  const app = [...p.appends].sort((a, b) => a.prio - b.prio)
-  for (const { step } of app) out.push(...expandStep(pipelines, step, nextStack))
-
-  return out
+  return [step]
 }
 
 export const createPipelineRuntime = () => {
@@ -49,29 +33,22 @@ export const createPipelineRuntime = () => {
         this.appends.push({ prio, step })
         return this
       },
-      rearrange: () => flattenPipeline(pipelines, name),
+      rearrange: () => expandStep(pipelines, name),
     }
     pipelines[name] = p
     return p
   }
 
-  const runPipeline = (pipeline, ctx) => {
+  const runPipeline = (pipeline, ctx, runner = (ctx, step) => {
+    if (typeof step === 'function') step(ctx)
+    return ctx
+  }) => {
     const steps =
       typeof pipeline === 'string'
-        ? flattenPipeline(pipelines, pipeline)
+        ? expandStep(pipelines, pipeline)
         : pipeline
 
-    for (const step of steps) {
-      if (Array.isArray(step)) {
-        step.forEach(item => typeof item === 'function' && item(ctx))
-      } else if (typeof step === 'function') {
-        step(ctx)
-      } else {
-        throw new Error(`runPipeline: 非法步骤类型 ${typeof step}`)
-      }
-    }
-
-    return ctx
+    return steps.reduce(runner, ctx)
   }
 
   return { Pipeline, runPipeline, pipelines }
