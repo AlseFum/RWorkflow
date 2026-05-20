@@ -42,7 +42,7 @@
       <div class="logs-panel">
         <div ref="logsContainer" class="logs-container">
           <div
-            v-for="(log, index) in runtime.logs"
+            v-for="(log, index) in pack.logs"
             :key="index"
             :class="['log-item', 'log-' + log.type]"
           >
@@ -69,16 +69,8 @@ const emit = defineEmits(['reset'])
 const logsContainer = ref(null)
 
 const statsEntries = computed(() => {
-  const s = runtime.stats
-  return Object.entries(s)
+  return Object.entries(runtime.value.stats || {})
 })
-
-const addLog = (msg, type = 'info') => {
-  runtime.logs.push({ msg, type })
-  nextTick(() => scrollBottom())
-}
-
-const delay = (ms) => new Promise((r) => setTimeout(r, ms))
 
 const scrollBottom = () => {
   if (logsContainer.value) {
@@ -87,19 +79,12 @@ const scrollBottom = () => {
 }
 
 const showSummary = async () => {
-  try {
-    await runtime.run('summary', {
-      log: addLog,
-      delay,
-    })
-  } catch (err) {
-    addLog(`Summary pipeline 错误: ${err.message}`, 'error')
-  }
+  await runtime.value.run('summary')
+  nextTick(() => scrollBottom())
 }
 
 onMounted(() => {
   showSummary()
-  nextTick(() => scrollBottom())
 })
 </script>
 

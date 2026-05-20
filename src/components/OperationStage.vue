@@ -104,11 +104,11 @@ const runtime = inject('runtime')
 const pack = inject('pack')
 const emit = defineEmits(['done', 'addField'])
 
-const localEnv = ref({ ...pack.value.env })
-const localActors = ref(pack.value.actors.map((e) => ({ ...e })) || [])
+const localEnv = ref({ ...pack.env })
+const localActors = ref(pack.actors.map((e) => ({ ...e })) || [])
 const selectedTab = ref('env')
 const selectedActorTab = ref(0)
-const roles = ref(pack.value.roles || {})
+const roles = ref(pack.roles || {})
 const entitySchema = ref({
   id: { type: 'string', label: 'ID' },
   name: { type: 'string', label: '名称' },
@@ -119,7 +119,7 @@ const handleEntityAddField = ({ key, type }) => {
 }
 
 const opsList = computed(() => {
-  const pkgOps = pack.value.ops || {}
+  const pkgOps = pack.ops || {}
   return Object.entries(pkgOps).map(([name, config]) => ({
     name,
     label: config.label || name,
@@ -132,7 +132,7 @@ const selectedActor = computed(() => {
   return localActors.value[selectedActorTab.value] || null
 })
 
-const isRunning = computed(() => runtime.isRunning())
+const isRunning = computed(() => runtime.value.isRunning())
 
 watch(() => localActors.value.length, (newLen) => {
   if (selectedActorTab.value >= newLen && newLen > 0) {
@@ -140,8 +140,8 @@ watch(() => localActors.value.length, (newLen) => {
   }
 })
 
-watch(() => pack.value.pipelines, () => {
-  runtime.registerPipelines()
+watch(() => pack.pipelines, () => {
+  runtime.value.registerPipelines?.()
 }, { deep: true })
 
 const updateEnv = (newEnv) => {
@@ -169,26 +169,26 @@ const addEntityFromRole = (roleKey) => {
 }
 
 const saveChanges = () => {
-  Object.assign(pack.value.env, localEnv.value)
-  pack.value.actors.splice(0, pack.value.actors.length, ...localActors.value)
+  Object.assign(pack.env, localEnv.value)
+  pack.actors.splice(0, pack.actors.length, ...localActors.value)
 }
 
 const handleRun = async (pipelineName) => {
   saveChanges()
-  await runtime.run(pipelineName)
+  await runtime.value.run(pipelineName)
 }
 
 onMounted(() => {
-  runtime.registerPipelines()
-  runtime.run('prepare')
+  runtime.value.registerPipelines?.()
+  runtime.value.run('prepare')
 })
 
 const goToSummary = () => {
   saveChanges()
 
-  pack.value.operationEnv = { ...localEnv.value }
-  pack.value.operationActors = [...localActors.value]
-  pack.value.operationSelectedActor = selectedActor.value
+  pack.operationEnv = { ...localEnv.value }
+  pack.operationActors = [...localActors.value]
+  pack.operationSelectedActor = selectedActor.value
 
   emit('done')
 }

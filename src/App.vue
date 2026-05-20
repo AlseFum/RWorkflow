@@ -30,19 +30,29 @@ import { ref, computed, provide, reactive } from 'vue'
 import PrepareStage from './components/PrepareStage.vue'
 import OperationStage from './components/OperationStage.vue'
 import LogStage from './components/LogStage.vue'
-import { createRuntime } from './runtime.js'
+import { createInstance } from './runtime.js'
 
 const stage = ref('prepare')
-const pack = ref({ env: {}, actors: [], ops: {}, schemas: {}, messages: {}, pipelines: {}, roles: {} })
-const logs = reactive([])
-const stats = reactive({})
+const pack = reactive({
+  env: {},
+  actors: [],
+  ops: {},
+  schemas: {},
+  messages: {},
+  pipelines: {},
+  roles: {},
+})
 
-const runtime = createRuntime({ pack, logs, stats })
+const runtime = ref(createInstance(
+  {},
+  {
+    addLog: (msg, type) => console.log(`[${type}]`, msg),
+    addTLog: (msg, type) => console.log(`[${new Date().toLocaleTimeString()}][${type}]`, msg),
+  }
+))
+
 provide('runtime', runtime)
 provide('pack', pack)
-provide('logs', logs)
-provide('stats', stats)
-globalThis.pack = pack.value
 
 const handleNext = () => {
   stage.value = 'run'

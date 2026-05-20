@@ -16,28 +16,28 @@
       <div class="config-section env-section">
         <h3>Global</h3>
         <JsonEditor
-          v-model="pack.value.env"
+          v-model="pack.env"
           :schema="currentSchema?.env"
-          :messages="pack.value.messages || {}"
+          :messages="pack.messages || {}"
         />
       </div>
 
       <div class="config-section actors-section">
         <h3>Actors</h3>
         <div class="actorslist">
-          <div v-for="(entity, index) in pack.value.actors" :key="entity.id || index" class="entity-item">
+          <div v-for="(entity, index) in pack.actors" :key="entity.id || index" class="entity-item">
             <div class="entity-header">
               <span class="entity-label">{{entity.name}}</span>
               <button
-                v-if="pack.value.actors.length > 1"
+                v-if="pack.actors.length > 1"
                 class="btn-remove-entity"
                 @click="removeEntity(index)"
               >−</button>
             </div>
             <JsonEditor
-              v-model="pack.value.actors[index]"
+              v-model="pack.actors[index]"
               :schema="currentSchema?.entity"
-              :messages="pack.value.messages || {}"
+              :messages="pack.messages || {}"
             />
           </div>
           <div class="entity-tabs">
@@ -54,10 +54,10 @@
         </div>
       </div>
 
-      <div v-if="Object.keys(pack.value.schemas || {}).length > 0" class="config-section schemas-section">
+      <div v-if="Object.keys(pack.schemas || {}).length > 0" class="config-section schemas-section">
         <h3>已加载 Schema</h3>
         <div class="schemas-preview">
-          <span v-for="(s, key) in pack.value.schemas" :key="key" class="schema-tag">{{ key }}</span>
+          <span v-for="(s, key) in pack.schemas" :key="key" class="schema-tag">{{ key }}</span>
         </div>
       </div>
     </div>
@@ -77,15 +77,15 @@ import JsonEditor from './JsonEditor.vue'
 import PackageSelector from './PackageSelector.vue'
 
 const emit = defineEmits(['next'])
-const runtime = inject('runtime')
 const pack = inject('pack')
+const runtime = inject('runtime')
 
 // ============================================================
 // 直接从 pack 读取（响应式）
 // ============================================================
-const selectedPreset = computed(() => pack.value.packageName || null)
+const selectedPreset = computed(() => pack.packageName || null)
 
-const currentSchema = computed(() => pack.value.schemas || {
+const currentSchema = computed(() => pack.schemas || {
   env: {
     mode: { type: 'string', label: '模式' },
     debug: { type: 'boolean', label: '调试' },
@@ -99,25 +99,23 @@ const currentSchema = computed(() => pack.value.schemas || {
   },
 })
 
-const roles = computed(() => pack.value.roles || {})
+const roles = computed(() => pack.roles || {})
 
 // ============================================================
 // Package 选择处理
 // ============================================================
 const onPresetSelect = (preset) => {
   if (!preset) {
-    delete pack.value.packageName
+    delete pack.packageName
     return
   }
 
-  pack.value.packageName = preset.name || preset.title || ''
+  pack.packageName = preset.name || preset.title || ''
 
   if (preset.content) {
-    // JSON 文件，直接合并 content
-    Object.assign(pack.value, preset.content)
+    Object.assign(pack, preset.content)
   } else if (preset.md) {
-    // MD 文件，解析并合并
-    runtime.loadPreset(preset.md)
+    runtime.value.loadPreset(preset.md)
   }
 }
 
@@ -125,9 +123,9 @@ const onPresetSelect = (preset) => {
 // Entity 操作（直接修改 pack.value）
 // ============================================================
 const addEntity = () => {
-  if (!pack.value.actors) pack.value.actors = []
-  const newIndex = pack.value.actors.length + 1
-  pack.value.actors.push({
+  if (!pack.actors) pack.actors = []
+  const newIndex = pack.actors.length + 1
+  pack.actors.push({
     id: 'entity_' + newIndex,
     name: 'Entity ' + newIndex,
     active: true,
@@ -138,13 +136,13 @@ const addEntity = () => {
 const addEntityFromRole = (roleKey) => {
   const role = roles.value[roleKey]
   if (!role) return
-  if (!pack.value.actors) pack.value.actors = []
-  pack.value.actors.push({ ...role })
+  if (!pack.actors) pack.actors = []
+  pack.actors.push({ ...role })
 }
 
 const removeEntity = (index) => {
-  if ((pack.value.actors?.length || 0) <= 1) return
-  pack.value.actors.splice(index, 1)
+  if ((pack.actors?.length || 0) <= 1) return
+  pack.actors.splice(index, 1)
 }
 
 // ============================================================
