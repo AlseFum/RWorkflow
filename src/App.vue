@@ -26,7 +26,7 @@
 </template>
 
 <script setup>
-import { ref, computed, provide } from 'vue'
+import { ref, computed, provide, reactive } from 'vue'
 import PrepareStage from './components/PrepareStage.vue'
 import OperationStage from './components/OperationStage.vue'
 import LogStage from './components/LogStage.vue'
@@ -34,10 +34,14 @@ import { createRuntime } from './runtime.js'
 
 const stage = ref('prepare')
 const pack = ref({ env: {}, actors: [], ops: {}, schemas: {}, messages: {}, pipelines: {}, roles: {} })
+const logs = reactive([])
+const stats = reactive({})
 
-const runtime = createRuntime(pack)
+const runtime = createRuntime({ pack, logs, stats })
 provide('runtime', runtime)
 provide('pack', pack)
+provide('logs', logs)
+provide('stats', stats)
 globalThis.pack = pack.value
 
 const handleNext = () => {

@@ -1,4 +1,3 @@
-import { reactive } from 'vue'
 import { createPipelineRuntime } from './pipeline.js'
 import { registerDefaultPipelines } from './setup_pipeline.js'
 import { parsePackage } from './mdreader.js'
@@ -18,20 +17,11 @@ import { parsePackage } from './mdreader.js'
  * @param {import('vue').Ref} pack - Vue reactive pack 对象（来自 App.vue）
  * @returns {Object} runtime 实例
  */
-export const createRuntime = (pack) => {
-  // ============================================================
-  // 状态（用 reactive 让 Vue 追踪变更）
-  // ============================================================
-  const logs = reactive([])
-  const stats = reactive({})
-
+export const createRuntime = ({ logs, stats, pack }) => {
   let isRunning = false
   let currentOp = ''
   let lastOp = ''
 
-  // ============================================================
-  // Pipeline 运行时初始化
-  // ============================================================
   const { Pipeline, runPipeline } = createPipelineRuntime()
 
   // ============================================================
@@ -124,7 +114,7 @@ export const createRuntime = (pack) => {
     }
 
     try {
-      runPipeline(pipelineName, ctx)
+      await runPipeline(pipelineName, ctx, defaultRunner)
       lastOp = pipelineName
     } catch (err) {
       addLog(`错误: ${err.message}`, 'error')
@@ -138,42 +128,13 @@ export const createRuntime = (pack) => {
   // Pipeline 注册
   // ============================================================
   const registerPipelines = () => {
-    const pkg = pack.value
-
-    if (pkg.pipelines) {
-      for (const [name, config] of Object.entries(pkg.pipelines)) {
-        Pipeline(name, config.steps || [])
-        if (!pkg.ops[name]) {
-          pkg.ops[name] = {
-            label: name,
-            type: 'secondary',
-            entry: name,
-          }
-        }
-
-        const pos = (config.pos ?? '').split(' ')
-        const target = Pipeline(pos[0])
-        if (!target) continue
-        const prio = Number(pos[2])
-
-        if (pos[1] === 'append') {
-          target.append(prio, config.do || [])
-        } else if (pos[1] === 'prepend') {
-          target.prepend(prio, config.do || [])
-        }
-      }
-    }
-
+    registerPipelinesFromPreset(Pipeline, pack.value)
     registerDefaultPipelines(Pipeline)
   }
 
   // ============================================================
   // 暴露给 pack
   // ============================================================
-  pack.value.pipelineRuntime = { Pipeline, run }
-  pack.value.stats = stats
-  pack.value.logs = logs
-
   return {
     logs,
     stats,
@@ -184,4 +145,165 @@ export const createRuntime = (pack) => {
     registerPipelines,
     loadPreset,
   }
+}
+// ============================================================
+// DOM 函数挂载（从 domRefs 获取）
+// ============================================================
+export const mountDomFunction = (obj, domRefs = {}) => {
+  obj.addLog = domRefs.addLog || ((msg, type) => console.log(`[${type}]`, msg))
+  obj.addTLog = domRefs.addTLog || ((msg, type) => {
+    console.log(`[${new Date().toLocaleTimeString()}][${type}]`, msg)
+  })
+  obj.delay = domRefs.delay || ((ms) => new Promise((r) => setTimeout(r, ms)))
+
+  obj.stat = domRefs.stat || ((name, value) => {
+    if (!obj.stats) obj.stats = {}
+    if (!obj.stats[name]) obj.stats[name] = { count: 0, total: 0 }
+    obj.stats[name].count++
+    obj.stats[name].total += Number(value) || 0
+  })
+
+  obj.log = obj.addLog
+  obj.tlog = obj.addTLog
+}
+
+// ============================================================
+// Pipeline 注册（提取为独立函数）
+// ============================================================
+const registerPipelinesFromPreset = (Pipeline, pkg) => {
+  if (!pkg?.pipelines) return
+
+  for (const [name, config] of Object.entries(pkg.pipelines)) {
+    Pipeline(name, config.steps || config)
+
+    // 自动生成 ops 条目
+    if (!pkg.ops?.[name]) {
+      pkg.ops[name] = {
+        label: name,
+        type: 'secondary',
+        entry: name,
+      }
+    }
+
+    // 处理 pipeline 定位
+    const pos = (config.pos ?? '').split(' ')
+    const target = Pipeline(pos[0])
+    if (!target) continue
+
+    const prio = Number(pos[2]) || 0
+    if (pos[1] === 'append') {
+      target.append(prio, config.do || [])
+    } else if (pos[1] === 'prepend') {
+      target.prepend(prio, config.do || [])
+    }
+  }
+}
+
+// ============================================================
+// 自定义 Runner
+// ============================================================
+const defaultRunner = (ctx, step) => {
+  if (typeof step === 'function') {
+    step(ctx)
+  } else if (step && typeof step === 'object') {
+    const { type, ...args } = step
+    switch (type) {
+      case 'log':
+        ctx.log?.(String(args.message || ''), args.level || 'info')
+        break
+      case 'delay':
+        return ctx.delay?.(args.ms || 0)
+      case 'setEnv':
+        ctx.env[args.key] = args.value
+        break
+      case 'each':
+        if (Array.isArray(args.items)) {
+          for (const item of args.items) {
+            ctx.temp.item = item
+            if (Array.isArray(args.body)) {
+              for (const bodyStep of args.body) {
+                defaultRunner(ctx, bodyStep)
+              }
+            }
+          }
+        }
+        break
+      default:
+        ctx.log?.(`Unknown step type: ${type}`, 'warn')
+    }
+  }
+  return ctx
+}
+
+// ============================================================
+// 创建独立实例（非 Vue 环境）
+// ============================================================
+export const createInstance = (preset, domRefs = {}, obj = {}) => {
+  const { blocks, ...frontmatter } = preset
+
+  // 合并 frontmatter
+  Object.assign(obj, frontmatter)
+
+  // 解析 blocks 并合并到对应属性
+  for (const block of blocks) {
+    if (!block?.is) continue
+
+    const isKey = block.is
+    delete block.is
+
+    if (!obj[isKey]) {
+      obj[isKey] = {}
+    }
+    Object.assign(obj[isKey], block)
+  }
+
+  // 创建 Pipeline 运行时
+  const { Pipeline, runPipeline } = createPipelineRuntime()
+  obj.Pipeline = Pipeline
+
+  // 挂载 domRefs 中的函数
+  mountDomFunction(obj, domRefs)
+
+  // 注册 pipelines
+  registerPipelinesFromPreset(Pipeline, obj)
+  registerDefaultPipelines(Pipeline)
+
+  // 状态
+  let isRunning = false
+  let currentOp = null
+  let lastOp = null
+
+  obj.isRunning = () => isRunning
+  obj.currentOp = () => currentOp
+  obj.lastOp = () => lastOp
+
+  obj.run = async (pipelineName, extraCtx = {}) => {
+    if (isRunning) return
+
+    const p = Pipeline(pipelineName)
+    if (!p) {
+      obj.addLog?.(`Pipeline "${pipelineName}" 未定义`, 'error')
+      return
+    }
+
+    isRunning = true
+    currentOp = pipelineName
+
+    const ctx = Object.assign(Object.create(obj), {
+      temp: {},
+      ...extraCtx,
+    })
+
+    try {
+      await runPipeline(pipelineName, ctx, defaultRunner)
+      lastOp = pipelineName
+    } catch (err) {
+      obj.addLog?.(`错误: ${err.message}`, 'error')
+    }
+
+    currentOp = null
+    isRunning = false
+  }
+
+  return obj
 }

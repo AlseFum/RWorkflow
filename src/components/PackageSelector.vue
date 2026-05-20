@@ -10,7 +10,7 @@
             @change="loadPackageFile"
             class="file-input"
           />
-          <span class="file-btn">Load</span>
+          <span class="file-btn">Open</span>
         </label>
         <button
           v-if="selectedPackage"
@@ -50,11 +50,10 @@ import { computed, ref } from 'vue'
 import { presets } from '../md/index'
 
 const props = defineProps({
-  modelValue: { type: Object, default: null },
   title: { type: String, default: '选择 Package' },
 })
 
-const emit = defineEmits(['update:modelValue', 'select'])
+const emit = defineEmits(['select'])
 
 // 文件加载状态
 const packageName = ref('')
@@ -69,14 +68,13 @@ const loadPackageFile = (event) => {
   reader.onload = (e) => {
     try {
       const text = e.target.result
+      const result = { name: file.name }
       if (file.name.endsWith('.json')) {
-        const data = JSON.parse(text)
-        emit('update:modelValue', { name: data.name || file.name, md: text, content: data })
-        emit('select', { name: data.name || file.name, md: text, content: data })
+        result.content = JSON.parse(text)
       } else {
-        emit('update:modelValue', { name: file.name, md: text })
-        emit('select', { name: file.name, md: text })
+        result.md = text
       }
+      emit('select', result)
       packageName.value = file.name
     } catch (err) {
       packageError.value = `加载失败: ${err.message}`
@@ -95,12 +93,10 @@ const presetList = Object.entries(presets).map(([key, preset]) => ({
 const selectedPackage = computed(() => props.modelValue)
 
 const selectPackage = (pkg) => {
-  emit('update:modelValue', pkg)
   emit('select', pkg)
 }
 
 const clearSelection = () => {
-  emit('update:modelValue', null)
   emit('select', null)
 }
 </script>

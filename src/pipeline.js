@@ -1,13 +1,18 @@
-const expandStep = (pipelines, step, stack = []) => {
+//runnable:any
+
+// runner: runnable -> any
+
+// unfold:(...)-> [runnable]
+const unfold = (pipelines, step, stack = []) => {
   if (typeof step === 'function') return [step]
   if (typeof step === 'string' && pipelines[step]) {
     if (stack.includes(step)) throw new Error(`Pipeline 循环引用: ${[...stack, step].join(' → ')}`)
     const p = pipelines[step]
     const nextStack = [...stack, step]
     return [
-      ...[...p.prepends].sort((a, b) => b.prio - a.prio).flatMap(s => expandStep(pipelines, s.step, nextStack)),
-      ...(p.main != null ? expandStep(pipelines, p.main, nextStack) : []),
-      ...[...p.appends].sort((a, b) => a.prio - b.prio).flatMap(s => expandStep(pipelines, s.step, nextStack)),
+      ...[...p.prepends].sort((a, b) => b.prio - a.prio).flatMap(s => unfold(pipelines, s.step, nextStack)),
+      ...(p.main != null ? unfold(pipelines, p.main, nextStack) : []),
+      ...[...p.appends].sort((a, b) => a.prio - b.prio).flatMap(s => unfold(pipelines, s.step, nextStack)),
     ]
   }
   return [step]
@@ -33,7 +38,7 @@ export const createPipelineRuntime = () => {
         this.appends.push({ prio, step })
         return this
       },
-      rearrange: () => expandStep(pipelines, name),
+      rearrange: () => unfold(pipelines, name),
     }
     pipelines[name] = p
     return p
@@ -45,7 +50,7 @@ export const createPipelineRuntime = () => {
   }) => {
     const steps =
       typeof pipeline === 'string'
-        ? expandStep(pipelines, pipeline)
+        ? unfold(pipelines, pipeline)
         : pipeline
 
     return steps.reduce(runner, ctx)

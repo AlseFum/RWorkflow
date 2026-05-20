@@ -40,8 +40,10 @@ is: roles
 base:
     ASense: 1
     BSense: 1
+    CSense: 1
     MSense: 1
     VSense: 2
+    ESense: 0
 \`\`\``
   },
   'JSON5Example': {
@@ -314,6 +316,53 @@ type = "log"
 level = "success"
 message = "批量更新完成"
 \`\`\`
+
+\`\`\`toml
+is = "schemas"
+
+[env]
+mode.type = "string"
+mode.label = "运行模式"
+mode.default = "dev"
+
+debug.type = "boolean"
+debug.label = "调试模式"
+debug.default = true
+
+timeout.type = "int"
+timeout.label = "超时时间(ms)"
+timeout.default = 5000
+
+[entity]
+id.type = "string"
+id.label = "实体ID"
+id.readonly = true
+
+name.type = "string"
+name.label = "名称"
+
+active.type = "boolean"
+active.label = "激活"
+active.default = true
+
+weight.type = "real"
+weight.label = "权重"
+weight.default = 1.0
+
+role.type = "enum"
+role.label = "角色"
+role.values = ["warrior", "mage", "rogue", "healer"]
+
+faction.type = "objectref"
+faction.label = "所属阵营"
+
+status.type = "boolean"
+status.label = "状态"
+
+score.type = "int"
+score.label = "积分"
+score.depend.status = true
+\`\`\`
 `
   },
   'YAMLExample': {
@@ -388,7 +437,7 @@ data:
       size: 20
 \`\`\`
 \`\`\`yaml
-is: entities
+is: actors
 data:
   - id: char_001
     name: Alice

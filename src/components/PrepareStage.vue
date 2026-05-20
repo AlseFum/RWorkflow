@@ -8,7 +8,6 @@
       <div class="config-section package-section">
         <h3>Package</h3>
         <PackageSelector
-          v-model="selectedPreset"
           title="预设 Package"
           @select="onPresetSelect"
         />
@@ -17,28 +16,28 @@
       <div class="config-section env-section">
         <h3>Global</h3>
         <JsonEditor
-          v-model="env"
+          v-model="pack.value.env"
           :schema="currentSchema?.env"
-          :messages="messages"
+          :messages="pack.value.messages || {}"
         />
       </div>
 
       <div class="config-section actors-section">
         <h3>Actors</h3>
         <div class="actorslist">
-          <div v-for="(entity, index) in actors" :key="entity.id || index" class="entity-item">
+          <div v-for="(entity, index) in pack.value.actors" :key="entity.id || index" class="entity-item">
             <div class="entity-header">
-              <span class="entity-label">{{actors[index].name}}</span>
+              <span class="entity-label">{{entity.name}}</span>
               <button
-                v-if="actors.length > 1"
+                v-if="pack.value.actors.length > 1"
                 class="btn-remove-entity"
                 @click="removeEntity(index)"
               >−</button>
             </div>
             <JsonEditor
-              v-model="actors[index]"
+              v-model="pack.value.actors[index]"
               :schema="currentSchema?.entity"
-              :messages="messages"
+              :messages="pack.value.messages || {}"
             />
           </div>
           <div class="entity-tabs">
@@ -55,10 +54,10 @@
         </div>
       </div>
 
-      <div v-if="Object.keys(schemas || {}).length > 0" class="config-section schemas-section">
+      <div v-if="Object.keys(pack.value.schemas || {}).length > 0" class="config-section schemas-section">
         <h3>已加载 Schema</h3>
         <div class="schemas-preview">
-          <span v-for="(s, key) in schemas" :key="key" class="schema-tag">{{ key }}</span>
+          <span v-for="(s, key) in pack.value.schemas" :key="key" class="schema-tag">{{ key }}</span>
         </div>
       </div>
     </div>
@@ -73,7 +72,7 @@
 // ============================================================
 // 依赖导入
 // ============================================================
-import { ref, inject } from 'vue'
+import { computed, inject } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import PackageSelector from './PackageSelector.vue'
 
@@ -82,27 +81,11 @@ const runtime = inject('runtime')
 const pack = inject('pack')
 
 // ============================================================
-// 默认值定义
+// 直接从 pack 读取（响应式）
 // ============================================================
-const defaultEnv = { mode: 'dev', debug: true, timeout: 5000 }
-const createDefaultEntity = (index) => ({
-  id: 'entity_' + index,
-  name: 'Entity ' + index,
-  active: true,
-  weight: 1.0,
-})
+const selectedPreset = computed(() => pack.value.packageName || null)
 
-// ============================================================
-// 状态定义
-// ============================================================
-const env = ref({ ...pack.value.env || defaultEnv })
-const actors = ref(pack.value.actors.length ? [...pack.value.actors]:[createDefaultEntity(1)])
-const schemas = ref(pack.value.schemas || {})
-const messages = ref(pack.value.messages || {})
-const roles = ref(pack.value.roles || {})
-const selectedPreset = ref(null)
-
-const currentSchema = ref({
+const currentSchema = computed(() => pack.value.schemas || {
   env: {
     mode: { type: 'string', label: '模式' },
     debug: { type: 'boolean', label: '调试' },
@@ -116,81 +99,58 @@ const currentSchema = ref({
   },
 })
 
+const roles = computed(() => pack.value.roles || {})
+
 // ============================================================
-// Preset 选择处理
+// Package 选择处理
 // ============================================================
 const onPresetSelect = (preset) => {
   if (!preset) {
-    selectedPreset.value = null
+    delete pack.value.packageName
     return
   }
 
-  selectedPreset.value = preset
+  pack.value.packageName = preset.name || preset.title || ''
 
-  // content 存在说明是 .json 文件，直接合并
   if (preset.content) {
+    // JSON 文件，直接合并 content
     Object.assign(pack.value, preset.content)
   } else if (preset.md) {
-    // md 文件走 runtime 解析合并
+    // MD 文件，解析并合并
     runtime.loadPreset(preset.md)
-  }
-
-  // 更新本地 UI 状态
-  if (pack.value.env) {
-    env.value = { ...pack.value.env }
-  }
-  if (pack.value.actors && pack.value.actors.length > 0) {
-    actors.value = pack.value.actors.map((e) => ({ ...e }))
-  } else {
-    actors.value = [createDefaultEntity(1)]
-  }
-  if (pack.value.schemas) {
-    schemas.value = { ...pack.value.schemas }
-    if (pack.value.schemas.env) {
-      currentSchema.value.env = pack.value.schemas.env
-    }
-    if (pack.value.schemas.entity) {
-      currentSchema.value.entity = pack.value.schemas.entity
-    }
-  }
-  if (pack.value.messages) {
-    messages.value = { ...pack.value.messages }
-  }
-  if (pack.value.roles) {
-    roles.value = { ...pack.value.roles }
   }
 }
 
 // ============================================================
-// Entity 操作
+// Entity 操作（直接修改 pack.value）
 // ============================================================
 const addEntity = () => {
-  const newIndex = actors.value.length + 1
-  actors.value.push(createDefaultEntity(newIndex))
-  pack.value.actors=[...actors.value]
+  if (!pack.value.actors) pack.value.actors = []
+  const newIndex = pack.value.actors.length + 1
+  pack.value.actors.push({
+    id: 'entity_' + newIndex,
+    name: 'Entity ' + newIndex,
+    active: true,
+    weight: 1.0,
+  })
 }
 
 const addEntityFromRole = (roleKey) => {
   const role = roles.value[roleKey]
   if (!role) return
-  const newEntity = Object.assign({},role)
-  actors.value.push(newEntity)
-  pack.value.actors=[...actors.value]
+  if (!pack.value.actors) pack.value.actors = []
+  pack.value.actors.push({ ...role })
 }
 
 const removeEntity = (index) => {
-  if (actors.value.length <= 1) return
-  actors.value.splice(index, 1)
-  pack.value.actors=[...actors.value]
+  if ((pack.value.actors?.length || 0) <= 1) return
+  pack.value.actors.splice(index, 1)
 }
 
 // ============================================================
 // 导航
 // ============================================================
 const handleNext = () => {
-  pack.value.env = env.value
-  pack.value.actors=actors.value
-  pack.value.packageName = selectedPreset.value?.name || ''
   emit("next")
 }
 </script>

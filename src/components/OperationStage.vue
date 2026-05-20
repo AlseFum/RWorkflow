@@ -112,8 +112,6 @@ const roles = ref(pack.value.roles || {})
 const entitySchema = ref({
   id: { type: 'string', label: 'ID' },
   name: { type: 'string', label: '名称' },
-  active: { type: 'boolean', label: '激活' },
-  weight: { type: 'real', label: '权重' },
 })
 
 const handleEntityAddField = ({ key, type }) => {
