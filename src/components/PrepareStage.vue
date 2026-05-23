@@ -16,28 +16,28 @@
       <div class="config-section env-section">
         <h3>Global</h3>
         <JsonEditor
-          v-model="pack.env"
+          v-model="runtime.env"
           :schema="currentSchema?.env"
-          :messages="pack.messages || {}"
+          :messages="runtime.messages || {}"
         />
       </div>
 
       <div class="config-section actors-section">
         <h3>Actors</h3>
         <div class="actorslist">
-          <div v-for="(entity, index) in pack.actors" :key="entity.id || index" class="entity-item">
+          <div v-for="(entity, index) in runtime?.actors" :key="entity.id || index" class="entity-item">
             <div class="entity-header">
               <span class="entity-label">{{entity.name}}</span>
               <button
-                v-if="pack.actors.length > 1"
+                v-if="runtime.actors.length > 1"
                 class="btn-remove-entity"
                 @click="removeEntity(index)"
               >−</button>
             </div>
             <JsonEditor
-              v-model="pack.actors[index]"
+              v-model="runtime.actors[index]"
               :schema="currentSchema?.entity"
-              :messages="pack.messages || {}"
+              :messages="runtime.messages || {}"
             />
           </div>
           <div class="entity-tabs">
@@ -54,10 +54,10 @@
         </div>
       </div>
 
-      <div v-if="Object.keys(pack.schemas || {}).length > 0" class="config-section schemas-section">
+      <div v-if="Object.keys(runtime.schemas || {}).length > 0" class="config-section schemas-section">
         <h3>已加载 Schema</h3>
         <div class="schemas-preview">
-          <span v-for="(s, key) in pack.schemas" :key="key" class="schema-tag">{{ key }}</span>
+          <span v-for="(s, key) in runtime.schemas" :key="key" class="schema-tag">{{ key }}</span>
         </div>
       </div>
     </div>
@@ -69,85 +69,51 @@
 </template>
 
 <script setup>
-// ============================================================
-// 依赖导入
-// ============================================================
 import { computed, inject } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import PackageSelector from './PackageSelector.vue'
 
 const emit = defineEmits(['next'])
-const pack = inject('pack')
 const runtime = inject('runtime')
+const resetRuntime = inject('resetRuntime')
 
-// ============================================================
-// 直接从 pack 读取（响应式）
-// ============================================================
-const selectedPreset = computed(() => pack.packageName || null)
-
-const currentSchema = computed(() => pack.schemas || {
+const currentSchema = computed(() => runtime.value?.schemas || {
   env: {
-    mode: { type: 'string', label: '模式' },
-    debug: { type: 'boolean', label: '调试' },
-    timeout: { type: 'int', label: '超时(ms)' },
   },
   entity: {
-    id: { type: 'string', label: 'ID' },
-    name: { type: 'string', label: '名称' },
-    active: { type: 'boolean', label: '激活' },
-    weight: { type: 'real', label: '权重' },
   },
 })
 
-const roles = computed(() => pack.roles || {})
 
-// ============================================================
-// Package 选择处理
-// ============================================================
 const onPresetSelect = (preset) => {
-  if (!preset) {
-    delete pack.packageName
-    return
-  }
-
-  pack.packageName = preset.name || preset.title || ''
-
-  if (preset.content) {
-    Object.assign(pack, preset.content)
-  } else if (preset.md) {
-    runtime.value.loadPreset(preset.md)
-  }
+  resetRuntime(preset)
 }
-
-// ============================================================
-// Entity 操作（直接修改 pack.value）
-// ============================================================
+//===============================================
 const addEntity = () => {
-  if (!pack.actors) pack.actors = []
-  const newIndex = pack.actors.length + 1
-  pack.actors.push({
+  const r = runtime.value
+  if (!r.actors) r.actors = []
+  const newIndex = r.actors.length + 1
+  r.actors.push({
     id: 'entity_' + newIndex,
     name: 'Entity ' + newIndex,
-    active: true,
-    weight: 1.0,
   })
 }
+const roles = computed(() => runtime.value?.roles || {})
 
 const addEntityFromRole = (roleKey) => {
+  const r = runtime.value
   const role = roles.value[roleKey]
   if (!role) return
-  if (!pack.actors) pack.actors = []
-  pack.actors.push({ ...role })
+  if (!r.actors) r.actors = []
+  r.actors.push({ ...role })
 }
 
 const removeEntity = (index) => {
-  if ((pack.actors?.length || 0) <= 1) return
-  pack.actors.splice(index, 1)
+  const r = runtime.value
+  if ((r.actors?.length || 0) <= 1) return
+  r.actors.splice(index, 1)
 }
-
-// ============================================================
-// 导航
-// ============================================================
+//=================================================
 const handleNext = () => {
   emit("next")
 }
@@ -312,7 +278,6 @@ const handleNext = () => {
   overflow-y: auto;
 }
 
-/* Footer & Next Button */
 .stage-footer {
   padding: 1.25rem 1.5rem;
   border-top: 1px solid var(--border);
@@ -347,7 +312,6 @@ const handleNext = () => {
   box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
 }
 
-/* Schemas Preview */
 .config-section.schemas-section {
   grid-column: 2;
   grid-row: 1;
@@ -368,7 +332,6 @@ const handleNext = () => {
   color: var(--text-secondary);
 }
 
-/* Responsive */
 @media (max-width: 900px) {
   .prepare-content {
     grid-template-columns: 1fr;

@@ -11,10 +11,25 @@ kiss:
 ```
 ```yaml
 is: pipelines
-kiss:
-  steps:
-    - ctx.log("You kissed.")
-    - ctx.selectedActor.p=23
+kiss: |
+  // #pos after aesf 1
+  ctx.addLog("You kissed."+ctx._.time)
+  // console.log("ctx", ctx._, ctx._.time)
+  // ctx._.env.c=ctx._.time+100;
+  // ctx.e("d",ctx._.time+24)
+poop: |
+  //#pos after kiss 2
+  ctx.addLog("poop")
+bean:
+  - pos: prepare after 3
+  - Z: 23
+  - ENVAE : 23
+  - A: 7
+  - console.log("bur")
+```
+```yaml
+is: env
+a: b
 ```
 ```yaml
 is: roles

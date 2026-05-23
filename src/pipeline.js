@@ -17,13 +17,22 @@ const unfold = (pipelines, step, stack = []) => {
   }
   return [step]
 }
-
+const NotInitialized=Symbol("Not initialized yet")
 export const createPipelineRuntime = () => {
   const pipelines = {}
 
   const Pipeline = (name, main) => {
-    if (main === undefined && typeof name === 'string') {
-      return pipelines[name]
+    if (main == undefined && typeof name === 'string') {
+      let got=pipelines[name];
+      return got ?got:Pipeline(name,NotInitialized)
+    }
+    let got=pipelines[name];
+    if(got && got.main == NotInitialized){
+      got.main=main;
+      return got;
+    }else if(got && got.main != NotInitialized){
+      // console.log("already registgered!")
+      return got;
     }
     const p = {
       name,
@@ -52,7 +61,7 @@ export const createPipelineRuntime = () => {
       typeof pipeline === 'string'
         ? unfold(pipelines, pipeline)
         : pipeline
-
+        
     return steps.reduce(runner, ctx)
   }
 

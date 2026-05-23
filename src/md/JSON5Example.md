@@ -1,7 +1,7 @@
 ---
 name: JSON5Example
 icon: ~
-description: JSON5格式书写的示例（支持注释和尾随逗号）
+description: JSON5格式书写的示例（支持注释和尾随逗号）deprecated
 ---
 
 ```json5

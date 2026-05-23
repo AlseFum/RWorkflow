@@ -11,15 +11,15 @@
         <div class="summary-stats">
           <div class="stat-item">
             <span class="stat-label">操作</span>
-            <span class="stat-value">{{ pack.op || 'N/A' }}</span>
+            <span class="stat-value">{{ runtime?.value?.lastOp?.() || 'N/A' }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">环境字段</span>
-            <span class="stat-value">{{ Object.keys(pack.env || {}).length }}</span>
+            <span class="stat-value">{{ Object.keys(runtime?.value?.env || {}).length }}</span>
           </div>
           <div class="stat-item">
             <span class="stat-label">实体数量</span>
-            <span class="stat-value">{{ pack.actors?.length || 0 }}</span>
+            <span class="stat-value">{{ runtime?.value?.actors?.length || 0 }}</span>
           </div>
         </div>
 
@@ -42,7 +42,7 @@
       <div class="logs-panel">
         <div ref="logsContainer" class="logs-container">
           <div
-            v-for="(log, index) in pack.logs"
+            v-for="(log, index) in logs"
             :key="index"
             :class="['log-item', 'log-' + log.type]"
           >
@@ -63,13 +63,14 @@
 import { ref, computed, onMounted, nextTick, inject } from 'vue'
 
 const runtime = inject('runtime')
-const pack = inject('pack')
+const logs = inject('logs', ref([]))
+const stats = inject('stats', ref({}))
 const emit = defineEmits(['reset'])
 
 const logsContainer = ref(null)
 
 const statsEntries = computed(() => {
-  return Object.entries(runtime.value.stats || {})
+  return Object.entries(stats.value || {})
 })
 
 const scrollBottom = () => {

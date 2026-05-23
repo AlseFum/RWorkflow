@@ -26,33 +26,60 @@
 </template>
 
 <script setup>
-import { ref, computed, provide, reactive } from 'vue'
+import { ref, provide, computed } from 'vue'
 import PrepareStage from './components/PrepareStage.vue'
 import OperationStage from './components/OperationStage.vue'
 import LogStage from './components/LogStage.vue'
 import { createInstance } from './runtime.js'
+import { parsePackage } from './mdreader.js'
 
 const stage = ref('prepare')
-const pack = reactive({
-  env: {},
-  actors: [],
-  ops: {},
-  schemas: {},
-  messages: {},
-  pipelines: {},
-  roles: {},
-})
 
-const runtime = ref(createInstance(
-  {},
-  {
-    addLog: (msg, type) => console.log(`[${type}]`, msg),
-    addTLog: (msg, type) => console.log(`[${new Date().toLocaleTimeString()}][${type}]`, msg),
+// logs 独立引用，确保跨组件共享同一数组
+const logsRef = ref([])
+
+// stats 独立引用，确保跨组件共享
+const statsRef = ref({})
+
+// domRefs
+const domRefs = {
+  logs: logsRef.value,
+  stats: statsRef.value,
+  addLog: (msg, type) => console.log(`[log ${type??""}]`, msg),
+  addTLog: (msg, type) => console.log(`[log ${new Date().toLocaleTimeString()} ${type}]`, msg),
+}
+
+// runtime ref - 默认空对象避免 null
+const runtime = ref({ env: {}, actors: [], messages: {}, logs: [] })
+
+// 重置 runtime：每次选择 preset 时调用
+const resetRuntime = (preset = {}) => {
+  let parsed = { blocks: [] }
+  if (preset.md) {
+    parsed = parsePackage(preset.md)
+  } else if (preset.content) {
+    parsed = { blocks: preset.content.blocks || [], ...preset.content }
   }
-))
 
+  const newRuntime = createInstance(parsed, domRefs)
+  if (!newRuntime.env) newRuntime.env = {}
+  if (!newRuntime.messages) newRuntime.messages = {}
+
+  runtime.value = newRuntime
+
+  // 同步 logs 和 stats 引用
+  logsRef.value = domRefs.logs
+  statsRef.value = domRefs.stats
+}
+
+// 初始化
+resetRuntime({})
+
+// 暴露给子组件
 provide('runtime', runtime)
-provide('pack', pack)
+provide('logs', logsRef)
+provide('stats', statsRef)
+provide('resetRuntime', resetRuntime)
 
 const handleNext = () => {
   stage.value = 'run'

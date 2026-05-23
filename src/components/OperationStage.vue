@@ -44,7 +44,7 @@
             >
               +{{ role.name || key }}
             </button>
-        </div>
+          </div>
         </div>
         <div v-if="localActors.length > 0" class="actor-content">
           <JsonEditor
@@ -77,16 +77,15 @@
       </div>
 
       <LogPanel
-        :logs="runtime.logs"
+        :logs="logs"
         :is-running="isRunning"
-        @clear="runtime.logs.length = 0"
+        @clear="logs.length = 0"
       />
     </div>
 
     <div class="stage-footer">
       <button
         class="btn-next-stage"
-        :disabled="isRunning || !runtime.lastOp()"
         @click="goToSummary"
       >
         {{ isRunning ? '...' : 'Summary' }}
@@ -96,19 +95,19 @@
 </template>
 
 <script setup>
-import { ref, computed, inject, watch, onMounted } from 'vue'
+import { ref, computed, inject, watch, onMounted, onUnmounted } from 'vue'
 import JsonEditor from './JsonEditor.vue'
 import LogPanel from './LogPanel.vue'
 
 const runtime = inject('runtime')
-const pack = inject('pack')
+const logs = inject('logs', ref([]))
 const emit = defineEmits(['done', 'addField'])
 
-const localEnv = ref({ ...pack.env })
-const localActors = ref(pack.actors.map((e) => ({ ...e })) || [])
+const localEnv = ref({ ...(runtime.value?.env || {}) })
+const localActors = ref((runtime.value?.actors || []).map((e) => ({ ...e })))
 const selectedTab = ref('env')
 const selectedActorTab = ref(0)
-const roles = ref(pack.roles || {})
+const roles = ref(runtime.value?.roles || {})
 const entitySchema = ref({
   id: { type: 'string', label: 'ID' },
   name: { type: 'string', label: '名称' },
@@ -119,7 +118,8 @@ const handleEntityAddField = ({ key, type }) => {
 }
 
 const opsList = computed(() => {
-  const pkgOps = pack.ops || {}
+  const r = runtime.value
+  const pkgOps = r.ops || {}
   return Object.entries(pkgOps).map(([name, config]) => ({
     name,
     label: config.label || name,
@@ -132,7 +132,7 @@ const selectedActor = computed(() => {
   return localActors.value[selectedActorTab.value] || null
 })
 
-const isRunning = computed(() => runtime.value.isRunning())
+const isRunning = computed(() => runtime.value?.isRunning?.() || false)
 
 watch(() => localActors.value.length, (newLen) => {
   if (selectedActorTab.value >= newLen && newLen > 0) {
@@ -140,9 +140,46 @@ watch(() => localActors.value.length, (newLen) => {
   }
 })
 
-watch(() => pack.pipelines, () => {
-  runtime.value.registerPipelines?.()
+watch(() => runtime.value.pipelines, () => {
+  const r = runtime.value
+  if (r.Pipeline) {
+    for (const [name, config] of Object.entries(r.pipelines || {})) {
+      r.Pipeline(name, config.steps || config)
+    }
+  }
 }, { deep: true })
+
+let pollInterval = null
+let lastEnvJson = ''
+let lastActorsJson = ''
+
+const syncFromRuntime = () => {
+  const r = runtime.value
+  if (!r) return
+  const envJson = JSON.stringify(r.env)
+  const actorsJson = JSON.stringify(r.actors)
+  if (envJson !== lastEnvJson || actorsJson !== lastActorsJson) {
+    lastEnvJson = envJson
+    lastActorsJson = actorsJson
+    localEnv.value = JSON.parse(envJson || '{}')
+    localActors.value = JSON.parse(actorsJson || '[]')
+  }
+}
+
+onMounted(() => {
+  const r = runtime.value
+  if (r.Pipeline) {
+    for (const [name, config] of Object.entries(r.pipelines || {})) {
+      r.Pipeline(name, config.steps || config)
+    }
+  }
+  r.run('prepare')
+  pollInterval = setInterval(syncFromRuntime, 100)
+})
+
+onUnmounted(() => {
+  if (pollInterval) clearInterval(pollInterval)
+})
 
 const updateEnv = (newEnv) => {
   localEnv.value = newEnv
@@ -169,8 +206,13 @@ const addEntityFromRole = (roleKey) => {
 }
 
 const saveChanges = () => {
-  Object.assign(pack.env, localEnv.value)
-  pack.actors.splice(0, pack.actors.length, ...localActors.value)
+  const r = runtime.value
+  Object.assign(r.env, localEnv.value)
+  if (r.actors && Array.isArray(r.actors)) {
+    r.actors.splice(0, r.actors.length, ...localActors.value)
+  } else {
+    r.actors = [...localActors.value]
+  }
 }
 
 const handleRun = async (pipelineName) => {
@@ -179,17 +221,17 @@ const handleRun = async (pipelineName) => {
 }
 
 onMounted(() => {
-  runtime.value.registerPipelines?.()
-  runtime.value.run('prepare')
+  const r = runtime.value
+  if (r.Pipeline) {
+    for (const [name, config] of Object.entries(r.pipelines || {})) {
+      r.Pipeline(name, config.steps || config)
+    }
+  }
+  r.run('prepare')
 })
 
 const goToSummary = () => {
   saveChanges()
-
-  pack.operationEnv = { ...localEnv.value }
-  pack.operationActors = [...localActors.value]
-  pack.operationSelectedActor = selectedActor.value
-
   emit('done')
 }
 </script>

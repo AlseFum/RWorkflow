@@ -1,7 +1,7 @@
 ---
 name: TOMLExample
 icon: ~
-description: TOML格式书写的示例
+description: TOML格式书写的示例 deprecated
 ---
 
 # 数据处理
@@ -14,7 +14,6 @@ name = "Batch"
 ```toml
 is = "env"
 
-[data]
 mode3 = "ba3tch"
 debug = false
 batchSize = 100

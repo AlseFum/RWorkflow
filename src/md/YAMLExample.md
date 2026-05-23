@@ -1,15 +1,14 @@
 ---
 name: YAMLExample
 icon: ~
-description: YAML格式书写的示例
+description: YAML格式书写的示例 deprecated
 ---
 
 ```yaml
 is: env
-data:
-  mode: prod
-  debug: false
-  timeout: 30000
+mode: yaml
+debug: false
+timeout: 30000
 ```
 
 ```yaml

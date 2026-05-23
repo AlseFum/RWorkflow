@@ -30,10 +30,25 @@ kiss:
 \`\`\`
 \`\`\`yaml
 is: pipelines
-kiss:
-  steps:
-    - ctx.log("You kissed.")
-    - ctx.selectedActor.p=23
+kiss: |
+  // #pos after aesf 1
+  ctx.addLog("You kissed."+ctx._.time)
+  // console.log("ctx", ctx._, ctx._.time)
+  // ctx._.env.c=ctx._.time+100;
+  // ctx.e("d",ctx._.time+24)
+poop: |
+  //#pos after kiss 2
+  ctx.addLog("poop")
+bean:
+  - pos: prepare after 3
+  - Z: 23
+  - ENVAE : 23
+  - A: 7
+  - console.log("bur")
+\`\`\`
+\`\`\`yaml
+is: env
+a: b
 \`\`\`
 \`\`\`yaml
 is: roles
@@ -49,12 +64,12 @@ base:
   'JSON5Example': {
     name: 'JSON5Example',
     icon: '~',
-    description: 'JSON5格式书写的示例（支持注释和尾随逗号）',
+    description: 'JSON5格式书写的示例（支持注释和尾随逗号）deprecated',
     md: `
 ---
 name: JSON5Example
 icon: ~
-description: JSON5格式书写的示例（支持注释和尾随逗号）
+description: JSON5格式书写的示例（支持注释和尾随逗号）deprecated
 ---
 
 \`\`\`json5
@@ -134,12 +149,12 @@ data:
   'TOMLExample': {
     name: 'TOMLExample',
     icon: '~',
-    description: 'TOML格式书写的示例',
+    description: 'TOML格式书写的示例 deprecated',
     md: `
 ---
 name: TOMLExample
 icon: ~
-description: TOML格式书写的示例
+description: TOML格式书写的示例 deprecated
 ---
 
 # 数据处理
@@ -152,7 +167,6 @@ name = "Batch"
 \`\`\`toml
 is = "env"
 
-[data]
 mode3 = "ba3tch"
 debug = false
 batchSize = 100
@@ -368,20 +382,19 @@ score.depend.status = true
   'YAMLExample': {
     name: 'YAMLExample',
     icon: '~',
-    description: 'YAML格式书写的示例',
+    description: 'YAML格式书写的示例 deprecated',
     md: `
 ---
 name: YAMLExample
 icon: ~
-description: YAML格式书写的示例
+description: YAML格式书写的示例 deprecated
 ---
 
 \`\`\`yaml
 is: env
-data:
-  mode: prod
-  debug: false
-  timeout: 30000
+mode: yaml
+debug: false
+timeout: 30000
 \`\`\`
 
 \`\`\`yaml
