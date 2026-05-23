@@ -240,7 +240,7 @@ rank:
 ## schemas
 \`\`\`yaml
 is: schemas
-entity:
+actor:
   id:
     type: string
     label: ID
@@ -256,6 +256,9 @@ entity:
   health:
     type: int
     label: 生命值
+  StrangeValue:
+    type: int
+    label: 一些莫名其妙的值
 \`\`\`
 `
   }
