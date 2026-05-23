@@ -3,6 +3,17 @@
     ref="tagRef"
     :class="['json-tag', 'tag-' + type, { editing: isEditing || isEditingKey, 'tag-computed': computed }]"
   >
+    <!-- 类型选择器（编辑时显示） -->
+    <template v-if="isEditing">
+      <div class="type-selector">
+        <select v-model="localType" class="type-select" @change="onTypeChange">
+          <option v-for="t in availableTypes" :key="t.value" :value="t.value">
+            {{ t.icon }} {{ t.label }}
+          </option>
+        </select>
+      </div>
+    </template>
+
     <template v-if="isEditingKey">
       <input
         v-model="localKey"
@@ -20,30 +31,30 @@
 
       <template v-if="isEditing">
         <div class="tag-edit-form">
-          <template v-if="type === 'enum'">
+          <template v-if="localType === 'enum'">
             <select v-model="localValue" class="tag-select">
               <option v-for="opt in options" :key="opt.value" :value="opt.value">
                 {{ opt.label || opt.value }}
               </option>
             </select>
           </template>
-          <template v-else-if="type === 'boolean'">
+          <template v-else-if="localType === 'boolean'">
             <select v-model="localValue" class="tag-select">
               <option :value="true">true</option>
               <option :value="false">false</option>
             </select>
           </template>
-          <template v-else-if="type === 'int' || type === 'real'">
+          <template v-else-if="localType === 'int' || localType === 'real'">
             <input
               v-model="localValue"
               type="number"
-              :step="type === 'int' ? 1 : 'any'"
+              :step="localType === 'int' ? 1 : 'any'"
               class="tag-input"
               @keyup.enter.stop="$emit('update', parseValue(localValue))"
               @keyup.escape.stop="cancelEdit"
             />
           </template>
-          <template v-else-if="type === 'vector'">
+          <template v-else-if="localType === 'array'">
             <div class="tag-vector">
               <span class="vector-bracket">[</span>
               <span class="vector-items">{{ (localValue || []).length }} items</span>
@@ -61,7 +72,7 @@
           </template>
 
           <div class="tag-actions">
-            <button class="tag-btn save" @click.stop="$emit('update', parseValue(localValue))">✓</button>
+            <button class="tag-btn save" @click.stop="saveEdit">✓</button>
             <button class="tag-btn cancel" @click.stop="cancelEdit">✕</button>
           </div>
         </div>
@@ -75,7 +86,7 @@
         <template v-else-if="type === 'int' || type === 'real'">
           <span class="tag-value tag-number">{{ formatNumber(value) }}</span>
         </template>
-        <template v-else-if="type === 'vector'">
+        <template v-else-if="type === 'array'">
           <span class="tag-value tag-vector-val">[{{ (value || []).length }}]</span>
         </template>
         <template v-else-if="type === 'object'">
@@ -92,16 +103,32 @@
         </template>
 
         <span v-if="!computed" class="tag-actions">
-          <button class="tag-btn edit" @click.stop="startEdit">✎</button>
-          <button class="tag-btn delete" @click.stop="$emit('remove')">✕</button>
+          <button class="tag-btn type" @click.stop="openTypeMenu" title="修改类型">⚙</button>
+          <button class="tag-btn edit" @click.stop="startEdit" title="编辑">✎</button>
+          <button class="tag-btn delete" @click.stop="$emit('remove')" title="删除">✕</button>
         </span>
       </template>
     </template>
+
+    <!-- 类型选择下拉菜单 -->
+    <div v-if="showTypeMenu" ref="typeMenuRef" class="type-menu">
+      <div class="type-menu-header">修改类型</div>
+      <button
+        v-for="t in availableTypes"
+        :key="t.value"
+        :class="['type-menu-item', { active: t.value === type }]"
+        @click.stop="selectType(t.value)"
+      >
+        <span class="type-menu-icon">{{ t.icon }}</span>
+        <span class="type-menu-label">{{ t.label }}</span>
+        <span v-if="t.value === type" class="type-menu-check">✓</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = defineProps({
   label: { type: String, required: true },
@@ -111,14 +138,36 @@ const props = defineProps({
   computed: { type: Boolean, default: false },
 })
 
-const emit = defineEmits(['update', 'remove', 'rename'])
+const emit = defineEmits(['update', 'remove', 'rename', 'change-type'])
 
+// ============================================================
+// 类型配置
+// ============================================================
+const availableTypes = [
+  { value: 'string', label: '字符串', icon: '📝' },
+  { value: 'int', label: '整数', icon: '🔢' },
+  { value: 'real', label: '小数', icon: '📊' },
+  { value: 'boolean', label: '布尔', icon: '✓' },
+  { value: 'array', label: '数组', icon: '📋' },
+  { value: 'object', label: '对象', icon: '{}' },
+  { value: 'enum', label: '枚举', icon: '☰' },
+]
+
+// ============================================================
+// 状态
+// ============================================================
 const isEditing = ref(false)
 const isEditingKey = ref(false)
 const localValue = ref(null)
 const localKey = ref('')
+const localType = ref(props.type)
+const showTypeMenu = ref(false)
 const tagRef = ref(null)
+const typeMenuRef = ref(null)
 
+// ============================================================
+// 外部点击处理
+// ============================================================
 const handleClickOutside = (e) => {
   if (isEditing.value && tagRef.value && !tagRef.value.contains(e.target)) {
     cancelEdit()
@@ -126,11 +175,58 @@ const handleClickOutside = (e) => {
   if (isEditingKey.value && tagRef.value && !tagRef.value.contains(e.target)) {
     cancelKeyEdit()
   }
+  if (showTypeMenu.value && typeMenuRef.value && !typeMenuRef.value.contains(e.target)) {
+    showTypeMenu.value = false
+  }
 }
 
 onMounted(() => document.addEventListener('click', handleClickOutside))
 onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 
+// ============================================================
+// 类型切换
+// ============================================================
+const onTypeChange = () => {
+  // 切换类型时转换值
+  const newVal = convertValue(props.value, localType.value)
+  localValue.value = newVal
+}
+
+const convertValue = (val, toType) => {
+  switch (toType) {
+    case 'string':
+      return val != null ? String(val) : ''
+    case 'int':
+      return val != null ? (parseInt(val, 10) || 0) : 0
+    case 'real':
+      return val != null ? (parseFloat(val) || 0.0) : 0.0
+    case 'boolean':
+      return val ? true : false
+    case 'array':
+      return Array.isArray(val) ? [...val] : []
+    case 'object':
+      return (val != null && typeof val === 'object' && !Array.isArray(val)) ? { ...val } : {}
+    case 'enum':
+      return typeof val === 'string' ? val : ''
+    default:
+      return val
+  }
+}
+
+const openTypeMenu = () => {
+  showTypeMenu.value = !showTypeMenu.value
+}
+
+const selectType = (newType) => {
+  if (newType !== props.type) {
+    emit('change-type', newType)
+  }
+  showTypeMenu.value = false
+}
+
+// ============================================================
+// 值格式化
+// ============================================================
 const formatString = (val) => {
   if (val === null || val === undefined) return 'null'
   return val
@@ -142,10 +238,10 @@ const formatNumber = (val) => {
 }
 
 const parseValue = (val) => {
-  if (props.type === 'int') return val !== '' ? parseInt(val, 10) : null
-  if (props.type === 'real') return val !== '' ? parseFloat(val) : null
-  if (props.type === 'vector') return val || []
-  if (props.type === 'boolean') return Boolean(val)
+  if (localType.value === 'int') return val !== '' ? parseInt(val, 10) : null
+  if (localType.value === 'real') return val !== '' ? parseFloat(val) : null
+  if (localType.value === 'array') return val || []
+  if (localType.value === 'boolean') return Boolean(val)
   return val
 }
 
@@ -155,9 +251,13 @@ const getEnumLabel = (value) => {
   return opt ? (opt.label || opt.value) : value
 }
 
+// ============================================================
+// 编辑操作
+// ============================================================
 const startEdit = () => {
   if (props.readonly || props.computed) return
-  if (props.type === 'vector') {
+  localType.value = props.type
+  if (props.type === 'array') {
     localValue.value = [...(props.value || [])]
   } else if (props.type === 'int' || props.type === 'real') {
     localValue.value = props.value !== null && props.value !== undefined ? Number(props.value) : ''
@@ -169,9 +269,20 @@ const startEdit = () => {
   isEditing.value = true
 }
 
+const saveEdit = () => {
+  const parsedValue = parseValue(localValue.value)
+  emit('update', parsedValue)
+  // 如果类型改变了
+  if (localType.value !== props.type) {
+    emit('change-type', localType.value)
+  }
+  isEditing.value = false
+}
+
 const cancelEdit = () => {
   isEditing.value = false
   localValue.value = null
+  localType.value = props.type
 }
 
 const startKeyEdit = () => {
@@ -197,10 +308,15 @@ watch(() => props.value, () => {
     isEditing.value = false
   }
 })
+
+watch(() => props.type, (newType) => {
+  localType.value = newType
+})
 </script>
 
 <style scoped>
 .json-tag {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -310,6 +426,87 @@ watch(() => props.value, () => {
   content: '';
 }
 
+/* 类型选择器 */
+.type-selector {
+  margin-right: 0.5rem;
+}
+
+.type-select {
+  padding: 0.2rem 0.4rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
+.type-select:focus {
+  outline: none;
+}
+
+/* 类型菜单 */
+.type-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem;
+  min-width: 160px;
+  z-index: 100;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.type-menu-header {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.25rem;
+}
+
+.type-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.type-menu-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.type-menu-item.active {
+  background: rgba(100, 200, 255, 0.1);
+  color: var(--accent);
+}
+
+.type-menu-icon {
+  font-size: 0.9rem;
+}
+
+.type-menu-label {
+  flex: 1;
+}
+
+.type-menu-check {
+  color: var(--success);
+  font-weight: bold;
+}
+
+/* 编辑表单 */
 .tag-edit-form {
   display: flex;
   align-items: center;
@@ -404,7 +601,25 @@ watch(() => props.value, () => {
   opacity: 0.6;
 }
 
+.tag-btn.edit {
+  background: transparent;
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.tag-btn.type {
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
 .tag-btn:hover {
   opacity: 1;
+}
+
+.tag-btn.type:hover,
+.tag-btn.edit:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
 }
 </style>

@@ -143,7 +143,27 @@ const objRunner=(ctx,obj)=>{
   for (const [key, value] of Object.entries(obj)) {
           //Form
           if (key.startsWith("ENV")) {
-            console.log("ENV!")
+            let envKey=key.slice(4).trim();
+            if(typeof value == "string" && value.startsWith("++")){
+              ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)+value.slice(1).trim();
+            } else if(typeof value == "string" && value.startsWith("--")){
+              ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)-value.slice(1).trim();
+            } else {
+              ctx.env[envKey]=value;
+            }
+          }else if (key.startsWith("TRANSFER")){
+            let transferType=key.slice(8).trim();
+            if(transferType == "ENV"){
+              let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
+              let normal=Math.floor((ctx._.env[from_]??0) / fromScale);
+              ctx._.env[from_]=((ctx._.env[from_]??0)-(normal*fromScale));
+              ctx._.env[to]=(ctx._.env[to]??0)+normal*toScale;
+            } else if (transferType == "SELECTED"){
+              let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
+              let normal=Math.floor((ctx._.selectedActor[from_]??0) / fromScale);
+              ctx._.selectedActor[from_]=((ctx._.selectedActor[from_]??0)-(normal*fromScale));
+              ctx._.selectedActor[to]=(ctx._.selectedActor[to]??0)+normal*toScale;
+            }
           }
         }
 }
@@ -217,6 +237,7 @@ export const createInstance = (preset, domRefs = {}, obj = {}) => {
   obj.isRunning = () => isRunning
   obj.currentOp = () => currentOp
   obj.lastOp = () => lastOp
+  obj.selectedActor = null
 
   obj.run = async (pipelineName, extraCtx = {}) => {
     if (isRunning) return

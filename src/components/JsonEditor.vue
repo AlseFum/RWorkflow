@@ -1,7 +1,39 @@
 <template>
   <div class="json-editor">
+    <!-- 添加字段弹窗 -->
+    <div v-if="showAddDialog" class="add-dialog-overlay" @click.self="closeAddDialog">
+      <div class="add-dialog">
+        <h4>添加字段</h4>
+        <div class="dialog-field">
+          <label>字段名</label>
+          <input v-model="newField.key" class="dialog-input" placeholder="字段名" @keyup.enter="confirmAdd" />
+        </div>
+        <div class="dialog-field">
+          <label>类型</label>
+          <div class="type-grid">
+            <button
+              v-for="t in fieldTypes"
+              :key="t.value"
+              :class="['type-btn', { active: newField.type === t.value }]"
+              @click="newField.type = t.value"
+            >
+              <span class="type-icon">{{ t.icon }}</span>
+              <span class="type-label">{{ t.label }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="dialog-field" v-if="newField.type === 'enum'">
+          <label>枚举值（逗号分隔）</label>
+          <input v-model="newField.enumValues" class="dialog-input" placeholder="a, b, c" />
+        </div>
+        <div class="dialog-actions">
+          <button class="btn-cancel" @click="closeAddDialog">取消</button>
+          <button class="btn-confirm" @click="confirmAdd">确认</button>
+        </div>
+      </div>
+    </div>
+
     <div class="tags-container">
-      
       <JsonTag
         v-for="fieldDef in visibleFields"
         :key="fieldDef.key"
@@ -13,15 +45,16 @@
         @update="(val) => setValue(fieldDef.key, val)"
         @rename="({ oldKey, newKey }) => renameField(oldKey, newKey)"
         @remove="() => removeField(fieldDef.key)"
+        @change-type="(newType) => changeFieldType(fieldDef.key, newType)"
       />
-      <button class="btn-add" @click="addField">+ 添加字段</button>
+      <button class="btn-add" @click="openAddDialog">+ 添加字段</button>
       <div v-if="visibleFields.length === 0" class="empty-hint">
         {{ schema ? '无可用字段' : '暂无字段' }}
       </div>
     </div>
   </div>
 </template>
-// TODO 我们需要schema，还需要指向固定data object的属性
+
 <script setup>
 // ============================================================
 // Props & Emits
@@ -36,6 +69,103 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'addField'])
+
+// ============================================================
+// 添加字段弹窗
+// ============================================================
+const showAddDialog = ref(false)
+const newField = ref({ key: '', type: 'string', enumValues: '' })
+
+const fieldTypes = [
+  { value: 'string', label: '字符串', icon: '📝', defaultVal: '' },
+  { value: 'int', label: '整数', icon: '🔢', defaultVal: 0 },
+  { value: 'real', label: '小数', icon: '📊', defaultVal: 0.0 },
+  { value: 'boolean', label: '布尔', icon: '✓', defaultVal: false },
+  { value: 'array', label: '数组', icon: '📋', defaultVal: [] },
+  { value: 'object', label: '对象', icon: '{}', defaultVal: {} },
+  { value: 'enum', label: '枚举', icon: '☰', defaultVal: '' },
+]
+
+const openAddDialog = () => {
+  newField.value = { key: '', type: 'string', enumValues: '' }
+  showAddDialog.value = true
+}
+
+const closeAddDialog = () => {
+  showAddDialog.value = false
+}
+
+const confirmAdd = () => {
+  if (!newField.value.key.trim()) return
+
+  let defaultVal = ''
+  let options = null
+
+  switch (newField.value.type) {
+    case 'string': defaultVal = ''; break
+    case 'int': defaultVal = 0; break
+    case 'real': defaultVal = 0.0; break
+    case 'boolean': defaultVal = false; break
+    case 'array': defaultVal = []; break
+    case 'object': defaultVal = {}; break
+    case 'enum':
+      defaultVal = ''
+      if (newField.value.enumValues) {
+        options = newField.value.enumValues.split(',').map(v => ({
+          value: v.trim(),
+          label: v.trim()
+        }))
+      }
+      break
+  }
+
+  setValue(newField.value.key, defaultVal)
+  emit('addField', {
+    key: newField.value.key,
+    type: newField.value.type,
+    options
+  })
+  closeAddDialog()
+}
+
+// ============================================================
+// 修改字段类型
+// ============================================================
+const changeFieldType = (key, newType) => {
+  const oldValue = getValue(key)
+  let newValue = null
+
+  switch (newType) {
+    case 'string':
+      newValue = oldValue != null ? String(oldValue) : ''
+      break
+    case 'int':
+      newValue = oldValue != null ? parseInt(oldValue, 10) || 0 : 0
+      break
+    case 'real':
+      newValue = oldValue != null ? parseFloat(oldValue) || 0.0 : 0.0
+      break
+    case 'boolean':
+      newValue = oldValue ? true : false
+      break
+    case 'array':
+      newValue = Array.isArray(oldValue) ? [...oldValue] : []
+      break
+    case 'object':
+      newValue = (oldValue != null && typeof oldValue === 'object' && !Array.isArray(oldValue))
+        ? { ...oldValue }
+        : {}
+      break
+    case 'enum':
+      newValue = typeof oldValue === 'string' ? oldValue : ''
+      break
+    default:
+      newValue = oldValue
+  }
+
+  setValue(key, newValue)
+  emit('changeFieldType', { key, type: newType })
+}
 
 // ============================================================
 // Value Operations
@@ -68,7 +198,7 @@ const inferType = (value) => {
   if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'real'
   if (typeof value === 'boolean') return 'boolean'
   if (typeof value === 'string') return 'string'
-  if (Array.isArray(value)) return 'vector'
+  if (Array.isArray(value)) return 'array'
   if (typeof value === 'object') return 'object'
   return 'unknown'
 }
@@ -131,13 +261,6 @@ const visibleFields = computed(() => {
 // ============================================================
 // Field Management
 // ============================================================
-const addField = () => {
-  const newKey = 'field_' + Date.now().toString(36)
-  const fieldType = 'string' // 默认类型
-  setValue(newKey, '')
-  emit('addField', { key: newKey, type: fieldType })
-}
-
 const removeField = (key) => {
   if (!props.modelValue) return
   const newObj = { ...props.modelValue }
@@ -157,6 +280,143 @@ export default {
 .json-editor {
   background: var(--bg-secondary);
   border-radius: 8px;
+}
+
+/* 添加字段弹窗 */
+.add-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.add-dialog {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.5rem;
+  min-width: 360px;
+  max-width: 90vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}
+
+.add-dialog h4 {
+  margin: 0 0 1rem;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+
+.dialog-field {
+  margin-bottom: 1rem;
+}
+
+.dialog-field label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.dialog-input {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
+.dialog-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.type-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.type-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.6rem 0.4rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.type-btn:hover {
+  border-color: var(--accent);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.type-btn.active {
+  border-color: var(--accent);
+  background: rgba(100, 200, 255, 0.1);
+  box-shadow: 0 0 0 2px rgba(100, 200, 255, 0.2);
+}
+
+.type-icon {
+  font-size: 1.2rem;
+}
+
+.type-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.type-btn.active .type-label {
+  color: var(--accent);
+}
+
+.dialog-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+  margin-top: 1.25rem;
+}
+
+.btn-cancel,
+.btn-confirm {
+  padding: 0.5rem 1.25rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+}
+
+.btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.btn-confirm {
+  background: var(--accent);
+  color: white;
+}
+
+.btn-confirm:hover {
+  opacity: 0.9;
 }
 
 .btn-add {

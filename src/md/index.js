@@ -39,11 +39,13 @@ kiss: |
 poop: |
   //#pos after kiss 2
   ctx.addLog("poop")
+  console.log(ctx._.selectedActor)
+  if(ctx._.selectedActor){
+    ctx._.selectedActor.c=23
+  }
 bean:
   - pos: prepare after 3
-  - Z: 23
-  - ENVAE : 23
-  - A: 7
+  - TRANSFER ENV: a 2 b 1
   - console.log("bur")
 \`\`\`
 \`\`\`yaml

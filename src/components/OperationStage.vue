@@ -128,8 +128,22 @@ const opsList = computed(() => {
   }))
 })
 
-const selectedActor = computed(() => {
-  return localActors.value[selectedActorTab.value] || null
+const selectedActor = ref(null)
+
+// 更新 selectedActor 引用
+const updateSelectedActor = () => {
+  selectedActor.value = localActors.value[selectedActorTab.value] || null
+  // 同步到 runtime
+  if (runtime.value) {
+    runtime.value.selectedActor = selectedActor.value
+  }
+}
+
+watch(selectedActorTab, updateSelectedActor)
+watch(localActors, updateSelectedActor, { deep: true })
+
+onMounted(() => {
+  updateSelectedActor()
 })
 
 const isRunning = computed(() => runtime.value?.isRunning?.() || false)
@@ -213,6 +227,8 @@ const saveChanges = () => {
   } else {
     r.actors = [...localActors.value]
   }
+  // 同步 selectedActor 引用
+  updateSelectedActor()
 }
 
 const handleRun = async (pipelineName) => {
