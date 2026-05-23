@@ -69,7 +69,14 @@ export function parsePackage(markdown) {
         blocks.push(data)
       }
     } catch (err) {
-      console.warn(`Parse ${lang} error:`, err.message)
+      // 打印错误所在代码块的前后3行
+      const lines = content.split('\n')
+      const errorLineMatch = err.message.match(/line (\d+)/i)
+      const errorLine = errorLineMatch ? parseInt(errorLineMatch[1]) : 1
+      const start = Math.max(0, errorLine - 4)
+      const end = Math.min(lines.length, errorLine + 3)
+      const context = lines.slice(start, end).map((l, i) => `${start + i + 1}: ${l}`).join('\n')
+      console.warn(`Parse ${lang} error at line ${errorLine}:\n${context}\n${err.message}`)
     }
   }
 

@@ -1,22 +1,3 @@
-/** 由 index.sh 自动生成 不要手动修改*/
-
-export const presets = {
-  'empty': {
-    name: '空模板',
-    icon: '📄',
-    description: '什么都没有。',
-    md: `
----
-name: 空模板
-icon: 📄
-description: 什么都没有。
----`
-  },
-  'Example': {
-    name: 'Example',
-    icon: '📄',
-    description: '一份使用多种数据格式进行表达的示例',
-    md: `
 ---
 name: Example
 icon: "📄"
@@ -24,7 +5,7 @@ description: 一份使用多种数据格式进行表达的示例
 ---
 
 ## ENV变量
-\`\`\`toml
+```toml
 is = "env"
 
 wood = 0
@@ -32,23 +13,23 @@ iron = 0
 gold = 100
 quest_points = 0
 day = 1
-\`\`\`
-\`\`\`json5
+```
+```json5
 {
   is: "env",
   envFromJSON5:true
 }
-\`\`\`
-\`\`\`yaml
+```
+```yaml
 is: env
 mode: yaml
 debug: false
 timeout: 30000
-\`\`\`
+```
 
 ## A ctors变量
 
-\`\`\`toml
+```toml
 is = "actors"
 
 [[actors]]
@@ -68,10 +49,10 @@ level = 6
 health = 80
 mana = 120
 attack = 15
-\`\`\`
+```
 
 
-\`\`\`json5
+```json5
 {
     is: "actors",
     actors: [
@@ -94,9 +75,9 @@ attack = 15
     },
     ]
 }
-\`\`\`
+```
 
-\`\`\`yaml
+```yaml
 is: actors
 data:
   - id: prod_entity
@@ -107,10 +88,10 @@ data:
     name: Production Entity 2
     active: true
     weight: 0.8
-\`\`\`
+```
 
 ## roles
-\`\`\`yaml
+```yaml
 is: roles
 base:
     ASense: 1
@@ -119,8 +100,8 @@ base:
     MSense: 1
     VSense: 2
     ESense: 0
-\`\`\`
-\`\`\`json5
+```
+```json5
 {
   is: "roles",
   user: {
@@ -139,10 +120,10 @@ base:
     active: false,
   },
 }
-\`\`\`
+```
 ## OP
 
-\`\`\`yaml
+```yaml
 is: ops
 kiss:
   entry: kiss
@@ -153,9 +134,9 @@ poop:
 bean:
   entry: bean
   label: bean
-\`\`\`
+```
 
-\`\`\`toml
+```toml
 is = "ops"
 
 [gather]
@@ -177,11 +158,11 @@ entry = "trade"
 label = "接受任务"
 type = "success"
 entry = "quest"
-\`\`\`
+```
 ## pipeline
 
 
-\`\`\`yaml
+```yaml
 is: pipelines
 kiss: |
   ctx.addLog("You kissed."+ctx._.time)
@@ -195,37 +176,37 @@ bean:
   - ADD health: 50
   - SET health: 100
   - console.log("ctx._.env:", ctx._.env)
-\`\`\`
+```
 
 ## COM
 
-\`\`\`json5
+```json5
 {
     is:"com",
     ADD: "ctx._.selectedActor[dir] = (ctx._.selectedActor[dir] ?? 0) + value",
     SET: "ctx._.selectedActor[dir] = value",
     GAIN: "ctx._.selectedActor[dir] = (ctx._.selectedActor[dir] ?? 0) * value + 10",
 }
-\`\`\`
+```
 
-\`\`\`yaml
+```yaml
 is: com
 ADD: |
   ctx._.selectedActor[dir] = (ctx._.selectedActor[dir] ?? 0) + value; console.log("add")
 SET: "ctx._.selectedActor[dir] = value"
 MUL: "ctx._.selectedActor[dir] = (ctx._.selectedActor[dir] ?? 1) * value"
-\`\`\`
+```
 ## ENUM
 
-\`\`\`yaml
+```yaml
 is: enum
 role:
   warrior: 战士
   mage: 法师
   rogue: 盗贼
-\`\`\`
+```
 
-\`\`\`yaml
+```yaml
 is: enums
 role:
   warrior: 战士
@@ -236,9 +217,9 @@ rank:
   rare: 稀有
   epic: 史诗
   legendary: 传说
-\`\`\`
+```
 ## schemas
-\`\`\`yaml
+```yaml
 is: schemas
 entity:
   id:
@@ -256,10 +237,4 @@ entity:
   health:
     type: int
     label: 生命值
-\`\`\`
-`
-  }
-}
-
-export const docs = {
-}
+```

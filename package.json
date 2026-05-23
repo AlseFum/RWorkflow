@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "fresh":"./src/md/index.sh"
+    "fresh": "./src/md/index.sh"
   },
   "dependencies": {
     "js-yaml": "^4.1.1",
@@ -16,6 +16,6 @@
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^5.0.4",
-    "vite": "^5.1.6"
+    "vite": "^5.4.21"
   }
 }

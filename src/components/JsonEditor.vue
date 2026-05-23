@@ -88,8 +88,6 @@ const fieldTypes = [
   { value: 'int', label: '整数', icon: '🔢', defaultVal: 0 },
   { value: 'real', label: '小数', icon: '📊', defaultVal: 0.0 },
   { value: 'boolean', label: '布尔', icon: '✓', defaultVal: false },
-  { value: 'array', label: '数组', icon: '📋', defaultVal: [] },
-  { value: 'object', label: '对象', icon: '{}', defaultVal: {} },
   { value: 'enum', label: '枚举', icon: '☰', defaultVal: '' },
 ]
 
@@ -114,8 +112,6 @@ const confirmAdd = () => {
     case 'int': defaultVal = 0; break
     case 'real': defaultVal = 0.0; break
     case 'boolean': defaultVal = false; break
-    case 'array': defaultVal = []; break
-    case 'object': defaultVal = {}; break
     case 'enum':
       if (newField.value.enumRef) {
         // 使用 runtime 中的枚举引用
@@ -159,14 +155,6 @@ const changeFieldType = (key, newType) => {
     case 'boolean':
       newValue = oldValue ? true : false
       break
-    case 'array':
-      newValue = Array.isArray(oldValue) ? [...oldValue] : []
-      break
-    case 'object':
-      newValue = (oldValue != null && typeof oldValue === 'object' && !Array.isArray(oldValue))
-        ? { ...oldValue }
-        : {}
-      break
     case 'enum':
       newValue = typeof oldValue === 'string' ? oldValue : ''
       break
@@ -208,9 +196,7 @@ const inferType = (value) => {
   if (typeof value === 'number') return Number.isInteger(value) ? 'int' : 'real'
   if (typeof value === 'boolean') return 'boolean'
   if (typeof value === 'string') return 'string'
-  if (Array.isArray(value)) return 'array'
-  if (typeof value === 'object') return 'object'
-  return 'unknown'
+  return 'string'
 }
 
 const checkDepend = (fieldDef, getVal) => {

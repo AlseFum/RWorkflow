@@ -224,7 +224,7 @@ export const createInstance = (preset, domRefs = {}, obj = {}) => {
 
     if (isKey === 'actors') {
       if (!obj.actors) obj.actors = []
-      for (const i of block.data) {
+      for (const i of (block.data || block.actors)) {
         obj.actors.push(i)
       }
     } else {

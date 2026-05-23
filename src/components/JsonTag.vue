@@ -48,13 +48,6 @@
               @keyup.escape.stop="cancelEdit"
             />
           </template>
-          <template v-else-if="localType === 'array'">
-            <div class="tag-vector">
-              <span class="vector-bracket">[</span>
-              <span class="vector-items">{{ (localValue || []).length }} items</span>
-              <span class="vector-bracket">]</span>
-            </div>
-          </template>
           <template v-else>
             <input
               v-model="localValue"
@@ -79,12 +72,6 @@
         </template>
         <template v-else-if="type === 'int' || type === 'real'">
           <span class="tag-value tag-number">{{ formatNumber(value) }}</span>
-        </template>
-        <template v-else-if="type === 'array'">
-          <span class="tag-value tag-vector-val">[{{ (value || []).length }}]</span>
-        </template>
-        <template v-else-if="type === 'object'">
-          <span class="tag-value tag-object">{...}</span>
         </template>
         <template v-else-if="type === 'objectref'">
           <span class="tag-value tag-ref">@{{ value || 'null' }}</span>
@@ -186,8 +173,6 @@ const availableTypes = [
   { value: 'int', label: '整数', icon: '🔢' },
   { value: 'real', label: '小数', icon: '📊' },
   { value: 'boolean', label: '布尔', icon: '✓' },
-  { value: 'array', label: '数组', icon: '📋' },
-  { value: 'object', label: '对象', icon: '{}' },
   { value: 'enum', label: '枚举', icon: '☰' },
 ]
 
@@ -240,10 +225,6 @@ const convertValue = (val, toType) => {
       return val != null ? (parseFloat(val) || 0.0) : 0.0
     case 'boolean':
       return val ? true : false
-    case 'array':
-      return Array.isArray(val) ? [...val] : []
-    case 'object':
-      return (val != null && typeof val === 'object' && !Array.isArray(val)) ? { ...val } : {}
     case 'enum':
     default:
       // enum:xxx 类型也返回字符串
@@ -283,7 +264,6 @@ const formatNumber = (val) => {
 const parseValue = (val) => {
   if (localType.value === 'int') return val !== '' ? parseInt(val, 10) : null
   if (localType.value === 'real') return val !== '' ? parseFloat(val) : null
-  if (localType.value === 'array') return val || []
   if (localType.value === 'boolean') return Boolean(val)
   return val
 }
@@ -299,9 +279,7 @@ const getEnumLabel = (value) => {
 // ============================================================
 const startEdit = () => {
   localType.value = props.type
-  if (props.type === 'array') {
-    localValue.value = [...(props.value || [])]
-  } else if (props.type === 'int' || props.type === 'real') {
+  if (props.type === 'int' || props.type === 'real') {
     localValue.value = props.value !== null && props.value !== undefined ? Number(props.value) : ''
   } else if (props.type === 'boolean') {
     localValue.value = props.value ?? false
@@ -441,20 +419,9 @@ watch(() => props.type, (newType) => {
   color: var(--error);
 }
 
-.tag-vector-val {
-  color: var(--warning);
-  font-family: monospace;
-}
-
 .tag-enum {
   color: #c678dd;
   font-weight: 500;
-}
-
-.tag-object {
-  color: var(--text-muted);
-  font-family: monospace;
-  font-style: italic;
 }
 
 .tag-ref {
@@ -596,19 +563,6 @@ watch(() => props.type, (newType) => {
   color: var(--text-primary);
   font-family: inherit;
   font-size: 0.8rem;
-}
-
-.tag-vector {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  color: var(--warning);
-  font-family: monospace;
-  font-size: 0.8rem;
-}
-
-.vector-bracket {
-  color: var(--text-muted);
 }
 
 .tag-actions {
