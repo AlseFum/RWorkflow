@@ -65,7 +65,6 @@ import JsonTag from './JsonTag.vue'
 const props = defineProps({
   modelValue: { type: Object, required: true },
   schema: { type: Object, default: null },
-  messages: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['update:modelValue', 'addField'])
@@ -170,7 +169,6 @@ const changeFieldType = (key, newType) => {
 // ============================================================
 // Value Operations
 // ============================================================
-const getMessage = (key) => props.messages[key] || key
 const getValue = (key) => props.modelValue?.[key]
 const setValue = (key, value) => {
   const newObj = { ...props.modelValue, [key]: value }
@@ -236,7 +234,7 @@ const visibleFields = computed(() => {
       }
       fields.push({
         key,
-        label: fieldDef.label || getMessage(key),
+        label: fieldDef.label || key,
         type: fieldDef.type,
         options,
         computed: !!fieldDef.computed,
