@@ -1,7 +1,7 @@
 <template>
   <div
     ref="tagRef"
-    :class="['json-tag', 'tag-' + type, { editing: isEditing || isEditingKey, 'tag-computed': computed }]"
+    :class="['json-tag', 'tag-' + type, { editing: isEditing || isEditingKey }]"
   >
     <!-- 类型选择器（编辑时显示） -->
     <template v-if="isEditing">
@@ -31,17 +31,11 @@
 
       <template v-if="isEditing">
         <div class="tag-edit-form">
-          <template v-if="localType === 'enum'">
+          <template v-if="hasEnumOptions">
             <select v-model="localValue" class="tag-select">
               <option v-for="opt in options" :key="opt.value" :value="opt.value">
                 {{ opt.label || opt.value }}
               </option>
-            </select>
-          </template>
-          <template v-else-if="localType === 'boolean'">
-            <select v-model="localValue" class="tag-select">
-              <option :value="true">true</option>
-              <option :value="false">false</option>
             </select>
           </template>
           <template v-else-if="localType === 'int' || localType === 'real'">
@@ -95,14 +89,14 @@
         <template v-else-if="type === 'objectref'">
           <span class="tag-value tag-ref">@{{ value || 'null' }}</span>
         </template>
-        <template v-else-if="type === 'enum'">
+        <template v-else-if="hasEnumOptionsDisplay">
           <span class="tag-value tag-enum">{{ getEnumLabel(value) }}</span>
         </template>
         <template v-else>
           <span class="tag-value tag-string">{{ formatString(value) }}</span>
         </template>
 
-        <span v-if="!computed" class="tag-actions">
+        <span class="tag-actions">
           <button class="tag-btn type" @click.stop="openTypeMenu" title="修改类型">⚙</button>
           <button class="tag-btn edit" @click.stop="startEdit" title="编辑">✎</button>
           <button class="tag-btn delete" @click.stop="$emit('remove')" title="删除">✕</button>
@@ -113,32 +107,76 @@
     <!-- 类型选择下拉菜单 -->
     <div v-if="showTypeMenu" ref="typeMenuRef" class="type-menu">
       <div class="type-menu-header">修改类型</div>
-      <button
-        v-for="t in availableTypes"
-        :key="t.value"
-        :class="['type-menu-item', { active: t.value === type }]"
-        @click.stop="selectType(t.value)"
-      >
-        <span class="type-menu-icon">{{ t.icon }}</span>
-        <span class="type-menu-label">{{ t.label }}</span>
-        <span v-if="t.value === type" class="type-menu-check">✓</span>
-      </button>
+      <template v-for="t in availableTypes" :key="t.value">
+        <button
+          :class="['type-menu-item', { active: t.value === type || (t.value === 'enum' && hasEnumOptionsDisplay) }]"
+          @click.stop="t.value === 'enum' ? null : selectType(t.value)"
+        >
+          <span class="type-menu-icon">{{ t.icon }}</span>
+          <span class="type-menu-label">{{ t.label }}</span>
+          <span v-if="t.value === type && !hasEnumOptionsDisplay" class="type-menu-check">✓</span>
+        </button>
+        <!-- 枚举子选项 -->
+        <template v-if="t.value === 'enum' && props.availableEnums">
+          <button
+            v-for="(def, enumKey) in props.availableEnums"
+            :key="enumKey"
+            :class="['type-menu-item', 'type-menu-sub', { active: enumRef === enumKey }]"
+            @click.stop="selectType('enum:' + enumKey)"
+          >
+            <span class="type-menu-icon">☰</span>
+            <span class="type-menu-label">{{ enumKey }}</span>
+            <span v-if="enumRef === enumKey" class="type-menu-check">✓</span>
+          </button>
+        </template>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 
 const props = defineProps({
   label: { type: String, required: true },
   value: { default: null },
   type: { type: String, default: 'string' },
   options: { type: Array, default: () => [] },
-  computed: { type: Boolean, default: false },
+  availableEnums: { type: Object, default: null },
 })
 
 const emit = defineEmits(['update', 'remove', 'rename', 'change-type'])
+
+// 解析枚举类型引用（如 "enum:role" -> "role"）
+const enumRef = computed(() => {
+  if (typeof props.type !== 'string') return null
+  const match = props.type.match(/^enum:(.+)$/)
+  return match ? match[1] : null
+})
+
+// 获取类型的显示标签
+const typeLabel = computed(() => {
+  const ref = enumRef.value
+  if (ref) return '枚举:' + ref
+  return availableTypes.find(t => t.value === props.type)?.label || props.type
+})
+
+// 编辑时的枚举引用
+const localEnumRef = computed(() => {
+  if (typeof localType.value !== 'string') return null
+  const match = localType.value.match(/^enum:(.+)$/)
+  return match ? match[1] : null
+})
+
+// 是否有枚举选项（用于编辑）
+const hasEnumOptions = computed(() => {
+  return localEnumRef.value || (localType.value === 'enum' && props.options?.length > 0)
+})
+
+// 是否有枚举选项（用于显示）
+const hasEnumOptionsDisplay = computed(() => {
+  return enumRef.value || (props.type === 'enum' && props.options?.length > 0)
+})
 
 // ============================================================
 // 类型配置
@@ -207,8 +245,9 @@ const convertValue = (val, toType) => {
     case 'object':
       return (val != null && typeof val === 'object' && !Array.isArray(val)) ? { ...val } : {}
     case 'enum':
-      return typeof val === 'string' ? val : ''
     default:
+      // enum:xxx 类型也返回字符串
+      if (toType?.startsWith?.('enum:')) return typeof val === 'string' ? val : ''
       return val
   }
 }
@@ -218,6 +257,10 @@ const openTypeMenu = () => {
 }
 
 const selectType = (newType) => {
+  if (newType === 'enum' && enumRef.value) {
+    // 切换到枚举但保持当前枚举引用
+    return
+  }
   if (newType !== props.type) {
     emit('change-type', newType)
   }
@@ -255,7 +298,6 @@ const getEnumLabel = (value) => {
 // 编辑操作
 // ============================================================
 const startEdit = () => {
-  if (props.readonly || props.computed) return
   localType.value = props.type
   if (props.type === 'array') {
     localValue.value = [...(props.value || [])]
@@ -286,7 +328,6 @@ const cancelEdit = () => {
 }
 
 const startKeyEdit = () => {
-  if (props.readonly || props.computed) return
   localKey.value = props.label
   isEditingKey.value = true
 }

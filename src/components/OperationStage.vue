@@ -51,6 +51,7 @@
             :model-value="localActors[selectedActorTab]"
             @update:model-value="updateEntity(selectedActorTab, $event)"
             :schema="entitySchema"
+            :enums="runtimeEnums"
             @add-field="handleEntityAddField"
           />
         </div>
@@ -108,13 +109,20 @@ const localActors = ref((runtime.value?.actors || []).map((e) => ({ ...e })))
 const selectedTab = ref('env')
 const selectedActorTab = ref(0)
 const roles = ref(runtime.value?.roles || {})
-const entitySchema = ref({
-  id: { type: 'string', label: 'ID' },
-  name: { type: 'string', label: '名称' },
-})
+const baseEntitySchema = computed(() =>
+  runtime.value?.schemas?.actor
+  || runtime.value?.schemas?.entity
+  || null
+)
+const customEntityFields = ref({})
+const entitySchema = computed(() => ({
+  ...baseEntitySchema.value,
+  ...customEntityFields.value,
+}))
+const runtimeEnums = computed(() => runtime.value?.enums || {})
 
-const handleEntityAddField = ({ key, type }) => {
-  entitySchema.value[key] = { type, label: key }
+const handleEntityAddField = ({ key, type, options }) => {
+  customEntityFields.value[key] = { type, label: key, options }
 }
 
 const opsList = computed(() => {

@@ -18,7 +18,6 @@
         <JsonEditor
           v-model="runtime.env"
           :schema="currentSchema?.env"
-          :messages="runtime.messages || {}"
         />
       </div>
 
@@ -36,8 +35,8 @@
             </div>
             <JsonEditor
               v-model="runtime.actors[index]"
-              :schema="currentSchema?.entity"
-              :messages="runtime.messages || {}"
+              :schema="currentSchema?.actor || currentSchema?.entity"
+              :enums="runtimeEnums"
             />
           </div>
           <div class="entity-tabs">
@@ -77,12 +76,13 @@ const emit = defineEmits(['next'])
 const runtime = inject('runtime')
 const resetRuntime = inject('resetRuntime')
 
-const currentSchema = computed(() => runtime.value?.schemas || {
-  env: {
-  },
-  entity: {
-  },
-})
+const currentSchema = computed(() => runtime.value?.schemas || {})
+const runtimeEnums = computed(() => runtime.value?.enums || {})
+
+// 使用 schemas.actor 或 schemas.entity 作为 entity schema
+const entitySchema = computed(() => runtime.value?.schemas?.actor
+  || runtime.value?.schemas?.entity
+  || null)
 
 
 const onPresetSelect = (preset) => {

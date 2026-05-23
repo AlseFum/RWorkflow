@@ -141,31 +141,48 @@ const registerPipelinesFromPreset = (Pipeline, pkg) => {
 // ============================================================
 const objRunner=(ctx,obj)=>{
   for (const [key, value] of Object.entries(obj)) {
-          //Form
-          if (key.startsWith("ENV")) {
-            let envKey=key.slice(4).trim();
-            if(typeof value == "string" && value.startsWith("++")){
-              ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)+value.slice(1).trim();
-            } else if(typeof value == "string" && value.startsWith("--")){
-              ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)-value.slice(1).trim();
-            } else {
-              ctx.env[envKey]=value;
-            }
-          }else if (key.startsWith("TRANSFER")){
-            let transferType=key.slice(8).trim();
-            if(transferType == "ENV"){
-              let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
-              let normal=Math.floor((ctx._.env[from_]??0) / fromScale);
-              ctx._.env[from_]=((ctx._.env[from_]??0)-(normal*fromScale));
-              ctx._.env[to]=(ctx._.env[to]??0)+normal*toScale;
-            } else if (transferType == "SELECTED"){
-              let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
-              let normal=Math.floor((ctx._.selectedActor[from_]??0) / fromScale);
-              ctx._.selectedActor[from_]=((ctx._.selectedActor[from_]??0)-(normal*fromScale));
-              ctx._.selectedActor[to]=(ctx._.selectedActor[to]??0)+normal*toScale;
-            }
-          }
-        }
+    // Form - ENV 和 TRANSFER 硬编码优先
+    if (key.startsWith("ENV")) {
+      let envKey=key.slice(4).trim();
+      if(typeof value == "string" && value.startsWith("++")){
+        ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)+value.slice(1).trim();
+      } else if(typeof value == "string" && value.startsWith("--")){
+        ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)-value.slice(1).trim();
+      } else {
+        ctx.env[envKey]=value;
+      }
+      continue
+    }
+    if (key.startsWith("TRANSFER")){
+      let transferType=key.slice(8).trim();
+      if(transferType == "ENV"){
+        let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
+        let normal=Math.floor((ctx._.env[from_]??0) / fromScale);
+        ctx._.env[from_]=((ctx._.env[from_]??0)-(normal*fromScale));
+        ctx._.env[to]=(ctx._.env[to]??0)+normal*toScale;
+      } else if (transferType == "SELECTED"){
+        let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
+        let normal=Math.floor((ctx._.selectedActor[from_]??0) / fromScale);
+        ctx._.selectedActor[from_]=((ctx._.selectedActor[from_]??0)-(normal*fromScale));
+        ctx._.selectedActor[to]=(ctx._.selectedActor[to]??0)+normal*toScale;
+      }
+      continue
+    }
+
+    // 从 ctx._.com 中查找命令
+    const parts = key.split(/\s+/)
+    const cmd = parts[0]
+    const dir = parts.slice(1).join(' ') || null
+    if (ctx._.com && ctx._.com[cmd] && typeof ctx._.com[cmd] === 'string') {
+      try {
+        const fn = new Function('ctx', 'dir', 'value', ctx._.com[cmd])
+        fn(ctx, dir, value)
+      } catch (e) {
+        console.error(`Error executing com[${cmd}]:`, e)
+      }
+      continue
+    }
+  }
 }
 const defaultRunner = (ctx, step) => {
   if (typeof step === 'function') {

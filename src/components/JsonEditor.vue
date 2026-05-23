@@ -23,6 +23,13 @@
           </div>
         </div>
         <div class="dialog-field" v-if="newField.type === 'enum'">
+          <label>选择枚举</label>
+          <select v-model="newField.enumRef" class="dialog-select">
+            <option value="">-- 自定义 --</option>
+            <option v-for="(def, key) in props.enums" :key="key" :value="key">{{ key }}</option>
+          </select>
+        </div>
+        <div class="dialog-field" v-if="newField.type === 'enum' && !newField.enumRef">
           <label>枚举值（逗号分隔）</label>
           <input v-model="newField.enumValues" class="dialog-input" placeholder="a, b, c" />
         </div>
@@ -41,7 +48,7 @@
         :value="getValue(fieldDef.key)"
         :type="fieldDef.type"
         :options="fieldDef.options"
-        :computed="fieldDef.computed"
+        :available-enums="props.enums"
         @update="(val) => setValue(fieldDef.key, val)"
         @rename="({ oldKey, newKey }) => renameField(oldKey, newKey)"
         @remove="() => removeField(fieldDef.key)"
@@ -65,6 +72,7 @@ import JsonTag from './JsonTag.vue'
 const props = defineProps({
   modelValue: { type: Object, required: true },
   schema: { type: Object, default: null },
+  enums: { type: Object, default: null },
 })
 
 const emit = defineEmits(['update:modelValue', 'addField'])
@@ -73,7 +81,7 @@ const emit = defineEmits(['update:modelValue', 'addField'])
 // 添加字段弹窗
 // ============================================================
 const showAddDialog = ref(false)
-const newField = ref({ key: '', type: 'string', enumValues: '' })
+const newField = ref({ key: '', type: 'string', enumRef: '', enumValues: '' })
 
 const fieldTypes = [
   { value: 'string', label: '字符串', icon: '📝', defaultVal: '' },
@@ -86,7 +94,7 @@ const fieldTypes = [
 ]
 
 const openAddDialog = () => {
-  newField.value = { key: '', type: 'string', enumValues: '' }
+  newField.value = { key: '', type: 'string', enumRef: '', enumValues: '' }
   showAddDialog.value = true
 }
 
@@ -99,6 +107,7 @@ const confirmAdd = () => {
 
   let defaultVal = ''
   let options = null
+  let finalType = newField.value.type
 
   switch (newField.value.type) {
     case 'string': defaultVal = ''; break
@@ -108,8 +117,11 @@ const confirmAdd = () => {
     case 'array': defaultVal = []; break
     case 'object': defaultVal = {}; break
     case 'enum':
-      defaultVal = ''
-      if (newField.value.enumValues) {
+      if (newField.value.enumRef) {
+        // 使用 runtime 中的枚举引用
+        finalType = 'enum:' + newField.value.enumRef
+        options = getEnumOptions(newField.value.enumRef)
+      } else if (newField.value.enumValues) {
         options = newField.value.enumValues.split(',').map(v => ({
           value: v.trim(),
           label: v.trim()
@@ -121,7 +133,7 @@ const confirmAdd = () => {
   setValue(newField.value.key, defaultVal)
   emit('addField', {
     key: newField.value.key,
-    type: newField.value.type,
+    type: finalType,
     options
   })
   closeAddDialog()
@@ -217,6 +229,24 @@ const checkDepend = (fieldDef, getVal) => {
 // ============================================================
 // Computed Fields
 // ============================================================
+// 解析枚举类型定义 "enum:role" -> { baseType: 'enum', ref: 'role' }
+const parseEnumType = (typeStr) => {
+  if (typeof typeStr !== 'string') return null
+  const match = typeStr.match(/^enum:(.+)$/)
+  if (match) return { baseType: 'enum', ref: match[1] }
+  return null
+}
+
+// 获取枚举选项
+const getEnumOptions = (enumRef) => {
+  if (!props.enums || !enumRef) return null
+  const enumDef = props.enums[enumRef]
+  if (!enumDef) return null
+  // 支持 { warrior: "战士" } 或 [ { value: "warrior", label: "战士" } ]
+  if (Array.isArray(enumDef)) return enumDef
+  return Object.entries(enumDef).map(([value, label]) => ({ value, label }))
+}
+
 const visibleFields = computed(() => {
   const fields = []
   const schemaKeys = props.schema ? Object.keys(props.schema) : []
@@ -225,19 +255,26 @@ const visibleFields = computed(() => {
   // 先添加 schema 定义的字段
   if (props.schema) {
     for (const [key, def] of Object.entries(props.schema)) {
-      const fieldDef = typeof def === 'string' ? { type: def } : def
+      const fieldDef = typeof def === 'string' ? { type: def } : { ...def }
       if (!checkDepend(fieldDef, getValue)) continue
 
       let options = fieldDef.options
-      if (fieldDef.type === 'enum' && fieldDef.values) {
+      let type = fieldDef.type
+
+      // 处理 enum:role 语法
+      const enumRef = parseEnumType(type)
+      if (enumRef) {
+        type = 'enum'
+        options = getEnumOptions(enumRef.ref)
+      } else if (type === 'enum' && fieldDef.values) {
         options = fieldDef.values.map((v) => typeof v === 'object' ? v : { value: v, label: v })
       }
+
       fields.push({
         key,
         label: fieldDef.label || key,
-        type: fieldDef.type,
+        type,
         options,
-        computed: !!fieldDef.computed,
       })
     }
   }
@@ -334,6 +371,23 @@ export default {
 }
 
 .dialog-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.dialog-select {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.dialog-select:focus {
   outline: none;
   border-color: var(--accent);
 }
