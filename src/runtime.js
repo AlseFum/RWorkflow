@@ -3,15 +3,6 @@ import { registerDefaultPipelines } from './setup_pipeline.js'
 
 /**
  * 核心业务运行时工厂
- *
- * 职责：
- * - 管理 pack（变量存储、preset 解析结果）
- * - 整合 env、actors、schemas、messages、ops、pipelines、roles
- * - 解析 md preset 并合并到 pack
- * - 创建 pipeline 运行时
- * - 注册 pipeline（默认 + pack 配置）
- * - 提供 log / tlog / stat / delay 等运行时工具
- * - 每次 runPipeline 生成新的 temp 对象
  */
 
 // ============================================================
@@ -26,8 +17,6 @@ export const mountDomFunction = (obj, domRefs = {}) => {
     domRefs.logs.push({ time: new Date().toLocaleTimeString(), msg, type })
     domRefs.addTLog?.(msg, type)
   }
-  obj.delay = domRefs.delay || ((ms) => new Promise((r) => setTimeout(r, ms)))
-
   obj.stat = (name, value) => {
     if (!domRefs.stats[name]) {
       domRefs.stats[name] = { count: 0, total: 0 }
@@ -139,7 +128,7 @@ const registerPipelinesFromPreset = (Pipeline, pkg) => {
 // ============================================================
 // 自定义 Runner
 // ============================================================
-const objRunner=(ctx,obj)=>{
+const KeyValueRunner=(ctx,obj)=>{
   for (const [key, value] of Object.entries(obj)) {
     // Form - ENV 和 TRANSFER 硬编码优先
     if (key.startsWith("ENV")) {
@@ -192,7 +181,7 @@ const defaultRunner = (ctx, step) => {
   } else if (Array.isArray(step)) {
     for (const singleStep of step) {
       if (typeof singleStep == "object") {
-        objRunner(ctx,singleStep)
+        KeyValueRunner(ctx,singleStep)
       }
       else if (typeof singleStep == "string") {
         // Form
@@ -204,7 +193,7 @@ const defaultRunner = (ctx, step) => {
 
   }
   else if (typeof step === 'object') {
-    objRunner(ctx,step)
+    KeyValueRunner(ctx,step)
   }
   return ctx
 }
@@ -244,7 +233,7 @@ export const createInstance = (preset, domRefs = {}, obj = {}) => {
   mountDomFunction(obj, domRefs)
   // 注册 pipelines
   registerPipelinesFromPreset(Pipeline, obj)
-  //registerDefaultPipelines(Pipeline)
+  registerDefaultPipelines(Pipeline)
 
   // 状态
   let isRunning = false
@@ -267,15 +256,26 @@ export const createInstance = (preset, domRefs = {}, obj = {}) => {
 
     isRunning = true
     currentOp = pipelineName
-    obj.time = (obj.time ?? 0) + 1;
     const ctx = Object.assign(Object.create(obj), {
-      temp: {},
       _: obj,/*don't set _ to any other property*/
+      do(cmd,dir,value){
+
+        if (ctx._.com && ctx._.com[cmd] && typeof ctx._.com[cmd] === 'string') {
+          try {
+            const fn = new Function('ctx', 'dir', 'value', ctx._.com[cmd])
+            fn(ctx, dir, value)
+          } catch (e) {
+            console.error(`Error executing com[${cmd}]:`, e)
+          }
+        }
+      },
       ...extraCtx,
     })
 
     try {
-      await runPipeline(pipelineName, ctx, defaultRunner)
+      let res=await runPipeline("pre", ctx, defaultRunner)
+      res=await runPipeline(pipelineName, res, defaultRunner)
+      /*res=*/await runPipeline("post", res, defaultRunner)
       lastOp = pipelineName
     } catch (err) {
       obj.addLog?.(`错误: ${err.message}`, 'error')

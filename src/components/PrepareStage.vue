@@ -52,13 +52,6 @@
           </div>
         </div>
       </div>
-
-      <div v-if="Object.keys(runtime.schemas || {}).length > 0" class="config-section schemas-section">
-        <h3>已加载 Schema</h3>
-        <div class="schemas-preview">
-          <span v-for="(s, key) in runtime.schemas" :key="key" class="schema-tag">{{ key }}</span>
-        </div>
-      </div>
     </div>
 
     <div class="stage-footer">

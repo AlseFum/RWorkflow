@@ -43,3 +43,5 @@ Thumbs.db
 *.tsbuildinfo
 
 **/index.js
+
+*notrace*
