@@ -31,7 +31,6 @@ export const createPipelineRuntime = () => {
       got.main=main;
       return got;
     }else if(got && got.main != NotInitialized){
-      // console.log("already registgered!")
       return got;
     }
     const p = {

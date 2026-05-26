@@ -1,5 +1,7 @@
 import { createPipelineRuntime } from './pipeline.js'
 import { registerDefaultPipelines } from './setup_pipeline.js'
+import { createEmptyPackage } from './types.js'
+import { typeCase } from './util.js'
 
 /**
  * 核心业务运行时工厂
@@ -39,81 +41,47 @@ export const mountDomFunction = (obj, domRefs = {}) => {
 // ============================================================
 // Pipeline 注册（提取为独立函数）
 // ============================================================
+const parsePosString = (posStr) => {
+  let prio = 16, where = "after", mountPipe = "prepare";
+  posStr.split(/[ \r\t]+/).forEach(i =>
+    isFinite(Number(i)) ? prio = Number(i)
+      : ["after", "append"].indexOf(i) != -1 ? (where = "after")
+        : ["before", "prepend"].indexOf(i) != -1 ? (where = "before")
+          : mountPipe = i
+  )
+  return { prio, where, mountPipe }
+}
+
+const applyPipelinePos = (Pipeline, posStr, name) => {
+  const { prio, where, mountPipe } = parsePosString(posStr)
+  const mountHandle = Pipeline(mountPipe)
+  if (!mountHandle) return
+  if (where == "before") {
+    Pipeline(mountPipe).prepend(prio, name)
+  } else if (where == "after") {
+    Pipeline(mountPipe).append(prio, name)
+  }
+}
+
 // 两种形式：pipelineName: 字符串纯js
 //          pipelineName: 复杂数组
 const registerPipelinesFromPreset = (Pipeline, pkg) => {
   if (!pkg?.pipelines) return
-  //基本是接pipeline的活
   for (const [name, config] of Object.entries(pkg.pipelines)) {
-    if (typeof config == "string") {
-      const regex = /^\/\/#pos\s*(.*)$/gm;
-      let match;
-      while ((match = regex.exec(config)) !== null) {
-        let rest = match[1].split(/[ \r\t]+/);
-        let prio = 16, where = "after", mountPipe = "prepare";
-        rest.forEach(i =>
-          isFinite(Number(i)) ? prio = Number(i)
-            : ["after", "append"].indexOf(i) != -1 ? (where = "after")
-              : ["before", "prepend"].indexOf(i) != -1 ? (where = "before")
-                : mountPipe = i
-        )
-
-        let mountHandle = Pipeline(mountPipe);
-        if (!mountHandle) {
-          continue;
+    typeCase(config)
+      .string((s) => {
+        const regex = /^\/\/#pos\s*(.*)$/gm
+        let match
+        while ((match = regex.exec(s)) !== null) {
+          applyPipelinePos(Pipeline, match[1], name)
         }
-        if (where == "before") {
-          Pipeline(mountPipe).prepend(prio, name)
-        } else if (where == "after") {
-          Pipeline(mountPipe).append(prio, name)
-        }
-      }
-    } else if (Array.isArray(config)) {
-      for (const item of config) {
-        if (item.pos) {
-          let rest = item.pos.split(/[ \r\t]+/);
-          let prio = 16, where = "after", mountPipe = "prepare";
-          rest.forEach(i =>
-            isFinite(Number(i)) ? prio = Number(i)
-              : ["after", "append"].indexOf(i) != -1 ? (where = "after")
-                : ["before", "prepend"].indexOf(i) != -1 ? (where = "before")
-                  : mountPipe = i
-          )
-
-          let mountHandle = Pipeline(mountPipe);
-          if (!mountHandle) {
-            continue;
-          }
-          if (where == "before") {
-            Pipeline(mountPipe).prepend(prio, name)
-          } else if (where == "after") {
-            Pipeline(mountPipe).append(prio, name)
-          }
-        }
-      }
-    } else {
-      let item = config;
-      if (item.pos) {
-        let rest = item.pos.split(/[ \r\t]+/);
-        let prio = 16, where = "after", mountPipe = "prepare";
-        rest.forEach(i =>
-          isFinite(Number(i)) ? prio = Number(i)
-            : ["after", "append"].indexOf(i) != -1 ? (where = "after")
-              : ["before", "prepend"].indexOf(i) != -1 ? (where = "before")
-                : mountPipe = i
-        )
-
-        let mountHandle = Pipeline(mountPipe);
-        if (!mountHandle) {
-          continue;
-        }
-        if (where == "before") {
-          Pipeline(mountPipe).prepend(prio, name)
-        } else if (where == "after") {
-          Pipeline(mountPipe).append(prio, name)
-        }
-      }
-    }
+      })
+      .array((arr) => arr.forEach((item) => {
+        if (item.pos) applyPipelinePos(Pipeline, item.pos, name)
+      }))
+      .object((obj) => {
+        if (obj.pos) applyPipelinePos(Pipeline, obj.pos, name)
+      })
 
     if (!pkg.ops?.[name]) {
       pkg.ops[name] = {
@@ -128,32 +96,48 @@ const registerPipelinesFromPreset = (Pipeline, pkg) => {
 // ============================================================
 // 自定义 Runner
 // ============================================================
-const KeyValueRunner=(ctx,obj)=>{
+const ExecString = (code, ctx) => {
+  const keys = Object.keys(ctx)
+  const values = Object.values(ctx)
+  {
+    code=code.replace("$$SELECTED","(ctx._.selectedActor||{})")
+    //$something.name -> ctx.something?[name]
+  }
+  return new Function('ctx', ...keys, code)(ctx, ...values)
+}
+
+const KeyValueRunner = (ctx, obj) => {
   for (const [key, value] of Object.entries(obj)) {
-    // Form - ENV 和 TRANSFER 硬编码优先
+    // ENV 处理
     if (key.startsWith("ENV")) {
-      let envKey=key.slice(4).trim();
-      if(typeof value == "string" && value.startsWith("++")){
-        ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)+value.slice(1).trim();
-      } else if(typeof value == "string" && value.startsWith("--")){
-        ctx.env[envKey]=(ctx.env[envKey]?ctx.env[envKey]:0)-value.slice(1).trim();
-      } else {
-        ctx.env[envKey]=value;
-      }
+      const envKey = key.slice(4).trim()
+      typeCase(value)
+        .string((s) => {
+          if (s.startsWith("++")) {
+            ctx.env[envKey] = (ctx.env[envKey] || 0) + s.slice(1).trim()
+          } else if (s.startsWith("--")) {
+            ctx.env[envKey] = (ctx.env[envKey] || 0) - s.slice(1).trim()
+          } else {
+            ctx.env[envKey] = s
+          }
+        })
+        .otherwise((v) => { ctx.env[envKey] = v })
       continue
     }
-    if (key.startsWith("TRANSFER")){
-      let transferType=key.slice(8).trim();
-      if(transferType == "ENV"){
-        let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
-        let normal=Math.floor((ctx._.env[from_]??0) / fromScale);
-        ctx._.env[from_]=((ctx._.env[from_]??0)-(normal*fromScale));
-        ctx._.env[to]=(ctx._.env[to]??0)+normal*toScale;
-      } else if (transferType == "SELECTED"){
-        let [from_,fromScale,to,toScale]=value.split(/[ \r\t]+/);
-        let normal=Math.floor((ctx._.selectedActor[from_]??0) / fromScale);
-        ctx._.selectedActor[from_]=((ctx._.selectedActor[from_]??0)-(normal*fromScale));
-        ctx._.selectedActor[to]=(ctx._.selectedActor[to]??0)+normal*toScale;
+
+    // TRANSFER 处理
+    if (key.startsWith("TRANSFER")) {
+      const transferType = key.slice(8).trim()
+      if (transferType == "ENV") {
+        const [from, fromScale, to, toScale] = value.split(/[ \r\t]+/)
+        const normal = Math.floor((ctx._.env[from] ?? 0) / fromScale)
+        ctx._.env[from] = (ctx._.env[from] ?? 0) - normal * fromScale
+        ctx._.env[to] = (ctx._.env[to] ?? 0) + normal * toScale
+      } else if (transferType == "SELECTED") {
+        const [from, fromScale, to, toScale] = value.split(/[ \r\t]+/)
+        const normal = Math.floor((ctx._.selectedActor[from] ?? 0) / fromScale)
+        ctx._.selectedActor[from] = (ctx._.selectedActor[from] ?? 0) - normal * fromScale
+        ctx._.selectedActor[to] = (ctx._.selectedActor[to] ?? 0) + normal * toScale
       }
       continue
     }
@@ -162,50 +146,38 @@ const KeyValueRunner=(ctx,obj)=>{
     const parts = key.split(/\s+/)
     const cmd = parts[0]
     const dir = parts.slice(1).join(' ') || null
-    if (ctx._.com && ctx._.com[cmd] && typeof ctx._.com[cmd] === 'string') {
+    const comCmd = ctx._.com?.[cmd]
+    if (comCmd && typeof comCmd === 'string') {
       try {
-        const fn = new Function('ctx', 'dir', 'value', ctx._.com[cmd])
-        fn(ctx, dir, value)
+        ExecString(comCmd, { ctx, dir, value })
       } catch (e) {
         console.error(`Error executing com[${cmd}]:`, e)
       }
-      continue
     }
   }
 }
 const defaultRunner = (ctx, step) => {
-  if (typeof step === 'function') {
-    step(ctx)
-  } else if (typeof step === 'string') {
-    return (new Function('ctx', step)(ctx)) ?? ctx
-  } else if (Array.isArray(step)) {
-    for (const singleStep of step) {
-      if (typeof singleStep == "object") {
-        KeyValueRunner(ctx,singleStep)
-      }
-      else if (typeof singleStep == "string") {
-        // Form
-        new Function("ctx", singleStep)(ctx);
-      } else {
-        console.log("whats this?", step)
-      }
-    }
-
-  }
-  else if (typeof step === 'object') {
-    KeyValueRunner(ctx,step)
-  }
+  typeCase(step)
+    .function((fn) => fn(ctx))
+    .string((s) => ExecString(s, { ctx }))
+    .array((arr) => arr.forEach((singleStep) => {
+      typeCase(singleStep)
+        .object((obj) => KeyValueRunner(ctx, obj))
+        .string((s) => ExecString(s, { ctx }))
+        .otherwise(() => console.log("whats this?", singleStep))
+    }))
+    .object((obj) => KeyValueRunner(ctx, obj))
   return ctx
 }
 
 export const createInstance = (preset, domRefs = {}, obj = {}) => {
+  const basePackage = createEmptyPackage()
   let { blocks, ...frontmatter } = preset
-  // 合并 frontmatter
-  Object.assign(obj, frontmatter)
-  blocks = blocks ?? [];
+
+  Object.assign(obj, basePackage, frontmatter)
 
   // 解析 blocks 并合并到对应属性
-  for (const block of blocks) {
+  for (const block of blocks ?? []) {
     if (!block?.is) continue
 
     const isKey = block.is
@@ -217,10 +189,7 @@ export const createInstance = (preset, domRefs = {}, obj = {}) => {
         obj.actors.push(i)
       }
     } else {
-      if (!obj[isKey]) {
-        obj[isKey] = {}
-      }
-      Object.assign(obj[isKey], block)
+      Object.assign(obj[isKey] ??= {}, block)
     }
   }
 
@@ -259,11 +228,9 @@ export const createInstance = (preset, domRefs = {}, obj = {}) => {
     const ctx = Object.assign(Object.create(obj), {
       _: obj,/*don't set _ to any other property*/
       do(cmd,dir,value){
-
         if (ctx._.com && ctx._.com[cmd] && typeof ctx._.com[cmd] === 'string') {
           try {
-            const fn = new Function('ctx', 'dir', 'value', ctx._.com[cmd])
-            fn(ctx, dir, value)
+            ExecString(ctx._.com[cmd], { ctx, dir, value })
           } catch (e) {
             console.error(`Error executing com[${cmd}]:`, e)
           }
