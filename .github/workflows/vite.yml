@@ -36,8 +36,10 @@ jobs:
           node-version: '20.12.2'
           npm-version: '10.5.0'
           cache: 'npm'
+      - name: Use public npm registry
+        run: npm config set registry https://registry.npmjs.org/
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --prefer-offline
       - name: Build
         run: npm run build
       - name: Setup Pages
