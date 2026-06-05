@@ -35,7 +35,6 @@ jobs:
         with:
           node-version: '20.12.2'
           npm-version: '10.5.0'
-          cache: 'npm'
       - name: Use public npm registry
         run: npm config set registry https://registry.npmjs.org/
       - name: Install dependencies
